@@ -3,49 +3,246 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR Code Generator — Swad Kitchen</title>
+<title>QR Poster Generator — TastyBites</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  body{ font-family: sans-serif; background:#FBF4EA; display:flex; flex-direction:column;
-        align-items:center; padding:60px 20px; color:#2B1B12; }
-  h1{ font-size:20px; margin-bottom:6px; }
-  p{ color:#6B5A4E; font-size:14px; margin-bottom:24px; text-align:center; max-width:320px; }
-  input{ width:320px; max-width:80vw; padding:12px 14px; border:1.5px solid #ddd; border-radius:8px;
-         font-size:14px; margin-bottom:14px; }
-  button{ background:#8A2A1F; color:#FBF4EA; border:none; padding:12px 22px; border-radius:8px;
-          font-weight:600; cursor:pointer; margin-bottom:28px; }
-  #qr{ padding:20px; background:white; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
-  #downloadBtn{ display:none; margin-top:16px; background:#E0982C; color:#2B1B12; }
+  *{box-sizing:border-box;}
+  body{ font-family:'Poppins',sans-serif; background:#EAF3E1; display:flex; flex-direction:column;
+        align-items:center; padding:40px 20px; color:#1F3013; margin:0; }
+  h1{ font-family:'Fredoka',sans-serif; font-size:22px; margin-bottom:6px; }
+  p{ color:#4C5F41; font-size:13.5px; margin-bottom:20px; text-align:center; max-width:420px; }
+  .field-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:16px; width:100%; max-width:640px; }
+  .field{ display:flex; flex-direction:column; gap:4px; flex:1; min-width:220px; }
+  .field label{ font-size:11.5px; font-weight:600; color:#4C5F41; }
+  input{ padding:11px 13px; border:1.5px solid #ccc; border-radius:8px; font-size:14px; font-family:inherit; }
+  button{ background:#2F5A1D; color:#fff; border:none; padding:12px 24px; border-radius:100px;
+          font-weight:700; font-size:14px; cursor:pointer; margin-bottom:24px; }
+  button:hover{ background:#254a17; }
+  #posterWrap{ background:white; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,0.12); padding:10px;
+               max-width:96vw; overflow:auto; }
+  canvas{ display:block; max-width:100%; height:auto; }
+  #downloadBtn{ display:none; margin-top:18px; background:#F2A93B; color:#1F3013; }
+  #hiddenQr{ position:absolute; left:-9999px; top:-9999px; }
 </style>
 </head>
 <body>
-  <h1>Generate your table QR code</h1>
-  <p>Paste the live URL of your hosted order page (e.g. from Netlify/Vercel) below.</p>
-  <input id="urlInput" type="text" placeholder="https://swadkitchen.netlify.app" value="https://tastybites-786.netlify.app/">
-  <button onclick="generate()">Generate QR</button>
-  <div id="qr"></div>
-  <button id="downloadBtn" onclick="download()">Download PNG</button>
+  <h1>🍽️ Generate your table QR poster</h1>
+  <p>Fill in your details, generate once, print it, and stick it on your tables. Keep the live URL the same — don't regenerate with a different link once printed, or old QR codes stop working.</p>
+
+  <div class="field-row">
+    <div class="field">
+      <label>Live order page URL</label>
+      <input id="urlInput" type="text" value="https://tastybites-786.netlify.app/">
+    </div>
+    <div class="field">
+      <label>Business name</label>
+      <input id="nameInput" type="text" value="TastyBites">
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>Tagline</label>
+      <input id="taglineInput" type="text" value="Cloud Kitchen">
+    </div>
+    <div class="field">
+      <label>Phone number</label>
+      <input id="phoneInput" type="text" value="9369872838">
+    </div>
+  </div>
+
+  <button onclick="generatePoster()">Generate QR Poster</button>
+
+  <div id="posterWrap">
+    <canvas id="posterCanvas" width="1500" height="1000"></canvas>
+  </div>
+  <button id="downloadBtn" onclick="downloadPoster()">⬇️ Download Poster PNG</button>
+
+  <div id="hiddenQr"></div>
 
 <script>
-let qrcode;
-function generate(){
-  document.getElementById('qr').innerHTML = '';
-  const url = document.getElementById('urlInput').value.trim();
-  if(!url) return;
-  qrcode = new QRCode(document.getElementById('qr'), {
-    text: url, width: 260, height: 260,
-    colorDark: "#2B1B12", colorLight: "#ffffff"
+const LOGO_SRC = 'logo.png'; // sits next to this file in the backend folder
+
+function loadImage(src){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
   });
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+async function generatePoster(){
+  const url = document.getElementById('urlInput').value.trim();
+  const name = document.getElementById('nameInput').value.trim() || 'TastyBites';
+  const tagline = document.getElementById('taglineInput').value.trim();
+  const phone = document.getElementById('phoneInput').value.trim();
+  if(!url){ alert('Please enter your live order page URL'); return; }
+
+  // Generate the raw QR into a hidden div first
+  document.getElementById('hiddenQr').innerHTML = '';
+  new QRCode(document.getElementById('hiddenQr'), {
+    text: url, width: 600, height: 600,
+    colorDark: "#1F3013", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+  });
+  await new Promise(r => setTimeout(r, 250)); // let qrcode.js render
+
+  const qrEl = document.querySelector('#hiddenQr img') || document.querySelector('#hiddenQr canvas');
+  const qrSrc = qrEl.tagName === 'CANVAS' ? qrEl.toDataURL() : qrEl.src;
+  const qrImg = await loadImage(qrSrc);
+
+  let logoImg = null;
+  try { logoImg = await loadImage(LOGO_SRC); } catch(e) { console.warn('Logo not found next to qr-generator.html, skipping.'); }
+
+  const canvas = document.getElementById('posterCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // ---- Background ----
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#FBF6EC');
+  bg.addColorStop(1, '#F3ECDD');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // soft decorative circles
+  ctx.fillStyle = 'rgba(91,154,52,0.08)';
+  ctx.beginPath(); ctx.arc(W-120, 100, 180, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(80, H-100, 150, 0, Math.PI*2); ctx.fill();
+
+  // bottom wave banner
+  ctx.fillStyle = '#2F5A1D';
+  ctx.beginPath();
+  ctx.moveTo(0, H-90);
+  ctx.quadraticCurveTo(W*0.25, H-150, W*0.5, H-95);
+  ctx.quadraticCurveTo(W*0.75, H-40, W, H-95);
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#F2A93B';
+  ctx.beginPath();
+  ctx.moveTo(0, H-70);
+  ctx.quadraticCurveTo(W*0.25, H-125, W*0.5, H-75);
+  ctx.quadraticCurveTo(W*0.75, H-25, W, H-75);
+  ctx.lineTo(W, H-68);
+  ctx.quadraticCurveTo(W*0.75, H-18, W*0.5, H-68);
+  ctx.quadraticCurveTo(W*0.25, H-118, W, H-68);
+  ctx.closePath();
+
+  // ---- QR block (left, large) ----
+  const qrBoxSize = 560;
+  const qrBoxX = 70, qrBoxY = 190;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 28);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#5B9A34';
+  ctx.lineWidth = 6;
+  roundRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 28);
+  ctx.stroke();
+  const qrPad = 40;
+  ctx.drawImage(qrImg, qrBoxX+qrPad, qrBoxY+qrPad, qrBoxSize-qrPad*2, qrBoxSize-qrPad*2);
+
+  // "SCAN THIS QR" ribbon under the QR box
+  ctx.save();
+  ctx.translate(qrBoxX + 50, qrBoxY + qrBoxSize + 45);
+  ctx.rotate(-0.04);
+  ctx.fillStyle = '#F2A93B';
+  roundRect(ctx, 0, 0, 300, 74, 14);
+  ctx.fill();
+  ctx.fillStyle = '#1F3013';
+  ctx.font = "700 30px 'Fredoka', sans-serif";
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SCAN THIS QR', 24, 39);
+  ctx.restore();
+
+  // scooter emoji bottom-left, over the green wave
+  ctx.font = '120px sans-serif';
+  ctx.fillText('🛵', 55, H - 40);
+
+  // ---- Right side: logo + name + tagline ----
+  const rightX = 760;
+  let logoCX = rightX + 130, logoCY = 210, logoR = 100;
+  if(logoImg){
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(logoCX, logoCY, logoR, 0, Math.PI*2);
+    ctx.closePath();
+    ctx.clip();
+    // cover-fit the logo into the circle
+    const scale = Math.max((logoR*2)/logoImg.width, (logoR*2)/logoImg.height);
+    const lw = logoImg.width*scale, lh = logoImg.height*scale;
+    ctx.drawImage(logoImg, logoCX-lw/2, logoCY-lh/2, lw, lh);
+    ctx.restore();
+    ctx.strokeStyle = '#5B9A34';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(logoCX, logoCY, logoR, 0, Math.PI*2); ctx.stroke();
+  }
+
+  const textX = rightX + 260;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#2F5A1D';
+  ctx.font = "700 90px 'Fredoka', sans-serif";
+  ctx.fillText(name, textX, 245);
+  if(tagline){
+    ctx.fillStyle = '#F2A93B';
+    ctx.font = "600 30px 'Poppins', sans-serif";
+    ctx.fillText(tagline.toUpperCase(), textX + 4, 285);
+  }
+
+  // Order Now / Home Delivery pills
+  function iconRow(y, emoji, label){
+    ctx.fillStyle = 'rgba(242,169,59,0.15)';
+    ctx.beginPath(); ctx.arc(textX + 40, y, 40, 0, Math.PI*2); ctx.fill();
+    ctx.font = '42px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, textX + 40, y + 2);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#2F5A1D';
+    ctx.font = "700 32px 'Fredoka', sans-serif";
+    ctx.fillText(label, textX + 100, y + 12);
+  }
+  iconRow(400, '🛍️', 'Order Now');
+  iconRow(490, '🏠', 'Home Delivery');
+
+  // Phone number
+  if(phone){
+    ctx.font = '46px sans-serif';
+    ctx.fillText('📞', textX, 610);
+    ctx.fillStyle = '#1F3013';
+    ctx.font = "700 56px 'Fredoka', sans-serif";
+    ctx.fillText(phone, textX + 65, 605);
+  }
+
   document.getElementById('downloadBtn').style.display = 'inline-block';
 }
-function download(){
-  const img = document.querySelector('#qr img') || document.querySelector('#qr canvas');
+
+function downloadPoster(){
+  const canvas = document.getElementById('posterCanvas');
+  const name = (document.getElementById('nameInput').value.trim() || 'tastybites').toLowerCase().replace(/\s+/g,'-');
   const link = document.createElement('a');
-  link.download = 'swad-kitchen-qr.png';
-  link.href = img.tagName === 'CANVAS' ? img.toDataURL() : img.src;
+  link.download = `${name}-qr-poster.png`;
+  link.href = canvas.toDataURL('image/png');
   link.click();
 }
-generate();
+
+generatePoster();
 </script>
 </body>
 </html>

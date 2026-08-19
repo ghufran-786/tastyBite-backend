@@ -89,6 +89,7 @@
   .order-row:last-child{ border-bottom:none; }
   .order-left{ flex:1; min-width:220px; }
   .order-phone{ font-weight:700; font-size:14.5px; }
+  .order-id-line{ font-size:11.5px; font-weight:700; color:var(--gold-dark); margin-bottom:2px; letter-spacing:0.3px; }
   .method-tag{ font-weight:600; font-size:11.5px; color:var(--dark-soft); margin-left:6px; }
   .order-time{ font-size:11.5px; color:var(--dark-soft); margin-top:2px; }
   .order-items{ margin-top:8px; font-size:13px; color:var(--dark-soft); line-height:1.6; }
@@ -177,9 +178,9 @@ let ALL_ORDERS = [];
 let currentFilter = 'all';
 
 const DEMO_ORDERS = [
-  { id:'demo1', phone:'9876543210', items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
-  { id:'demo2', phone:'9123456780', items:[{name:'Veg Biryani',qty:2,price:230}], amount:460, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
-  { id:'demo3', phone:'9988776655', items:[{name:'Paneer Tikka',qty:1,price:220},{name:'Dal Makhani',qty:1,price:210}], amount:430, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
+  { id:'demo1', displayId:'4821', phone:'9876543210', items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
+  { id:'demo2', displayId:'7305', phone:'9123456780', items:[{name:'Veg Biryani',qty:2,price:230}], amount:460, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
+  { id:'demo3', displayId:'2190', phone:'9988776655', items:[{name:'Paneer Tikka',qty:1,price:220},{name:'Dal Makhani',qty:1,price:210}], amount:430, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
 ];
 
 async function tryLogin(){
@@ -286,6 +287,7 @@ function renderOrders(){
   container.innerHTML = list.map(o => `
     <div class="order-row">
       <div class="order-left">
+        <div class="order-id-line">Order #${o.displayId || '----'}</div>
         <div class="order-phone">+91 ${o.phone} <span class="method-tag">${o.paymentMethod === 'upi' ? '📱 UPI' : '💵 COD'}</span></div>
         <div class="order-time">${timeAgo(o.createdAt)}</div>
         <div class="order-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>

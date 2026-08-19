@@ -145,10 +145,22 @@ app.post('/api/create-order', (req, res) => {
       lineItems.push({ id: line.id, name: item.name, qty: line.qty, price: item.price });
     }
 
-    const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const orders = loadOrders();
+
+    // 4-digit order number the customer sees and can quote to staff
+    // (e.g. "order #4821"). Internal `id` (order_<timestamp>_<random>)
+    // stays the real unique key used everywhere in the code; `displayId`
+    // is just the short human-friendly number.
+    const existingDisplayIds = new Set(orders.map(o => o.displayId));
+    let displayId;
+    do {
+      displayId = String(Math.floor(1000 + Math.random() * 9000)); // 1000-9999
+    } while (existingDisplayIds.has(displayId));
+
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const localOrder = {
       id: orderId,
+      displayId,
       phone,
       items: lineItems,
       amount,
@@ -159,7 +171,7 @@ app.post('/api/create-order', (req, res) => {
     orders.unshift(localOrder); // newest first
     saveOrders(orders);
 
-    res.json({ ok: true, order: { id: orderId, amount } });
+    res.json({ ok: true, order: { id: orderId, displayId, amount } });
   } catch (err) {
     console.error('create-order error:', err.message);
     res.status(500).json({ ok: false, error: 'Could not create order' });

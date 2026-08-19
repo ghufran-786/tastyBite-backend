@@ -279,6 +279,11 @@
     color:white; font-size:32px; display:flex; align-items:center; justify-content:center;
     margin:0 auto 18px;
   }
+  .order-id-badge{
+    display:inline-block; background:var(--green-pale); color:var(--green-deep);
+    font-weight:700; font-size:15px; padding:8px 18px; border-radius:100px;
+    margin:4px auto 14px; letter-spacing:0.5px;
+  }
 </style>
 </head>
 <body>
@@ -398,6 +403,7 @@
   <div class="screen success-screen" id="screen-success">
     <div class="success-icon" id="successIcon">✓</div>
     <h2 class="step-title" id="successTitle">Order placed!</h2>
+    <div class="order-id-badge" id="orderIdBadge" style="display:none;">Order #<span id="orderIdValue"></span></div>
     <p class="step-sub" id="successSub">Your food is being prepared. Show this screen to your server if needed.</p>
     <button class="btn btn-ghost" style="max-width:200px;" onclick="resetApp()">Order again</button>
   </div>
@@ -612,6 +618,7 @@ async function placeOrder(method){
   // paid from the dashboard once they've actually received the money
   // (whether that's cash in hand, or a UPI payment they've checked
   // landed in their account). Nothing here auto-marks an order as paid.
+  let displayId = null;
   if(BACKEND_URL){
     try{
       const res = await fetch(`${BACKEND_URL}/api/create-order`, {
@@ -621,10 +628,19 @@ async function placeOrder(method){
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Could not create order');
       lastOrderId = data.order.id;
+      displayId = data.order.displayId;
     }catch(err){
       alert('Could not reach the backend: ' + err.message);
       return;
     }
+  }
+
+  const badge = document.getElementById('orderIdBadge');
+  if(displayId){
+    document.getElementById('orderIdValue').textContent = displayId;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
   }
 
   if(method === 'cod'){

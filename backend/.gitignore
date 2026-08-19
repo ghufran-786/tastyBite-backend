@@ -1,4 +1,4 @@
-# Never commit this — it holds your real Twilio/Razorpay secrets
+# Never commit this — it holds your real Twilio secrets
 .env
 
 # Orders database (local order history — don't need it in git)

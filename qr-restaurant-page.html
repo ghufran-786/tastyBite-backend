@@ -6,7 +6,6 @@
 <title>TastyBites — Order</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Caveat:wght@600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
   :root{
     --green-deep:#2F5A1D;
@@ -162,6 +161,7 @@
   .btn:active{ opacity:0.88; transform:scale(0.99); }
   .btn-primary{ background:var(--gold); color:var(--dark); box-shadow:0 6px 16px rgba(242,169,59,0.35); }
   .btn-green{ background:var(--green-deep); color:var(--white); }
+  .btn-outline-green{ background:#fff; color:var(--green-deep); border:1.5px solid var(--green-deep); }
   .btn-ghost{
     background:transparent; color:var(--green-deep);
     border:1.5px solid var(--green); margin-top:10px;
@@ -268,6 +268,7 @@
     font-weight:700; font-size:15px; color:var(--green-deep);
   }
   .pay-footer{ padding:16px 24px 28px; margin-top:auto; }
+  .pay-method-label{ font-size:12.5px; font-weight:600; color:var(--dark-soft); text-align:center; margin-bottom:10px; }
   .secure-note{
     text-align:center; font-size:11.5px; color:var(--dark-soft); margin-top:10px;
   }
@@ -377,16 +378,27 @@
     </div>
     <div class="receipt" id="receiptBox"></div>
     <div class="pay-footer">
-      <button class="btn btn-green" onclick="startPayment()">Pay with Razorpay</button>
-      <div class="secure-note">🔒 Secured by Razorpay · UPI, Cards &amp; Wallets accepted</div>
+      <div class="pay-method-label">Choose payment method</div>
+      <button class="btn btn-outline-green" onclick="placeOrder('cod')">💵 Cash on Delivery</button>
+      <button class="btn btn-green" onclick="placeOrder('upi')" style="margin-top:10px;">📱 Pay via UPI</button>
+      <div class="secure-note">UPI opens your phone's payment app · Order is marked paid once the owner confirms receipt</div>
     </div>
+  </div>
+
+  <!-- SCREEN 4b: WAITING FOR UPI PAYMENT (shown after redirecting to UPI app) -->
+  <div class="screen success-screen" id="screen-upi-wait">
+    <div class="success-icon" style="background:var(--gold);">⏳</div>
+    <h2 class="step-title">Complete payment in your UPI app</h2>
+    <p class="step-sub">If your UPI app didn't open, tap the button below to try again. Once you've paid, tap "I've paid" — the owner will confirm receipt shortly.</p>
+    <button class="btn btn-green" style="max-width:280px; margin-bottom:10px;" onclick="retryUpi()">Open UPI app again</button>
+    <button class="btn btn-ghost" style="max-width:280px;" onclick="showScreen('screen-success')">I've paid</button>
   </div>
 
   <!-- SCREEN 5: SUCCESS -->
   <div class="screen success-screen" id="screen-success">
-    <div class="success-icon">✓</div>
-    <h2 class="step-title">Order placed!</h2>
-    <p class="step-sub">Your food is being prepared. Show this screen to your server if needed.</p>
+    <div class="success-icon" id="successIcon">✓</div>
+    <h2 class="step-title" id="successTitle">Order placed!</h2>
+    <p class="step-sub" id="successSub">Your food is being prepared. Show this screen to your server if needed.</p>
     <button class="btn btn-ghost" style="max-width:200px;" onclick="resetApp()">Order again</button>
   </div>
 
@@ -412,19 +424,25 @@ const MENU = {
     { id:'d2', name:'Fresh Lime Soda', desc:'Sweet or salted', price:80, emoji:'🍋' },
   ]
 };
-/* Razorpay key: use your TEST key here for demo, LIVE key only from a
-   server-generated order in production. See backend/README.md. */
-const RAZORPAY_KEY_ID = "rzp_test_XXXXXXXXXXXX";
-
 /* BACKEND_URL: set this to your deployed backend (see /backend folder)
    once it's live, e.g. "https://your-backend.onrender.com". Leaving it
-   blank keeps the page in demo mode — OTP/payment are simulated and
+   blank keeps the page in demo mode — OTP/orders are simulated and
    nothing is sent to the owner dashboard. */
 const BACKEND_URL = "";
 /* ============================================================ */
 
+/* UPI_ID: your business UPI ID (VPA), e.g. "yourrestaurant@okhdfcbank".
+   This is where money lands when a customer pays via UPI. Get this
+   from your bank's UPI app (GPay/PhonePe/Paytm business, or your
+   bank's own app) — no payment gateway or fees needed. */
+const UPI_ID = "your-upi-id@bank";
+/* ============================================================ */
+
+
 let cart = {}; // id -> qty
 let customerPhone = ''; // set once OTP is verified, used for order records
+let lastOrderId = null;
+let lastUpiUrl = null;
 
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -582,72 +600,51 @@ function getCartTotal(){
   return total;
 }
 
-async function startPayment(){
+async function placeOrder(method){
+  // method: 'cod' or 'upi'
   const amount = getCartTotal();
   if(amount === 0){ alert('Your cart is empty'); return; }
   const itemsPayload = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
 
   // ---- Backend connected: create a real, price-verified order first ----
   // This is also what makes the order show up on the owner dashboard.
+  // The order always starts as "pending" — only the OWNER can mark it
+  // paid from the dashboard once they've actually received the money
+  // (whether that's cash in hand, or a UPI payment they've checked
+  // landed in their account). Nothing here auto-marks an order as paid.
   if(BACKEND_URL){
     try{
       const res = await fetch(`${BACKEND_URL}/api/create-order`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ phone: customerPhone, items: itemsPayload })
+        body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method })
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Could not create order');
-
-      if(typeof Razorpay === 'undefined' || RAZORPAY_KEY_ID.includes('XXXX')){
-        alert('Order saved to dashboard. Razorpay key not set yet, so payment is simulated.');
-        showScreen('screen-success');
-        return;
-      }
-
-      const options = {
-        key: data.key_id,
-        amount: data.order.amount,
-        currency: "INR",
-        name: RESTAURANT.name,
-        description: "Table order",
-        order_id: data.order.id,
-        handler: async function(response){
-          // Confirm payment server-side so the dashboard flips this order to "Paid"
-          await fetch(`${BACKEND_URL}/api/verify-payment`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(response)
-          }).catch(()=>{});
-          showScreen('screen-success');
-        },
-        theme: { color: "#2F5A1D" }
-      };
-      new Razorpay(options).open();
+      lastOrderId = data.order.id;
     }catch(err){
       alert('Could not reach the backend: ' + err.message);
+      return;
     }
-    return;
   }
 
-  // ---- Demo mode: no backend configured, nothing is saved anywhere ----
-  if(typeof Razorpay === 'undefined' || RAZORPAY_KEY_ID.includes('XXXX')){
-    alert('DEMO: No backend/Razorpay key configured, so this order is not saved anywhere and won\'t appear on the owner dashboard. Simulating a successful payment now.');
+  if(method === 'cod'){
+    document.getElementById('successIcon').textContent = '✓';
+    document.getElementById('successTitle').textContent = 'Order placed!';
+    document.getElementById('successSub').textContent = "You'll pay cash when your order arrives. Show this screen to your server if needed.";
     showScreen('screen-success');
-    return;
+  } else {
+    // UPI: build a standard UPI deep link and hand off to the phone's
+    // UPI apps (GPay, PhonePe, Paytm, etc. all respond to upi:// links).
+    const note = encodeURIComponent(`${RESTAURANT.name} order`);
+    const payeeName = encodeURIComponent(RESTAURANT.name);
+    lastUpiUrl = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${payeeName}&am=${amount}&cu=INR&tn=${note}`;
+    showScreen('screen-upi-wait');
+    window.location.href = lastUpiUrl;
   }
+}
 
-  const options = {
-    key: RAZORPAY_KEY_ID,
-    amount: amount * 100,
-    currency: "INR",
-    name: RESTAURANT.name,
-    description: "Table order",
-    handler: function(response){
-      showScreen('screen-success');
-    },
-    theme: { color: "#2F5A1D" }
-  };
-  const rzp = new Razorpay(options);
-  rzp.open();
+function retryUpi(){
+  if(lastUpiUrl) window.location.href = lastUpiUrl;
 }
 
 function resetApp(){

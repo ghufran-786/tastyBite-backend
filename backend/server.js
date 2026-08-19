@@ -1,11 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const twilio = require('twilio');
-const Razorpay = require('razorpay');
 
 const app = express();
 app.use(cors());
@@ -85,27 +83,12 @@ app.post('/api/verify-otp', async (req, res) => {
 });
 
 /* ---------------------------------------------------------
-   RAZORPAY SETUP (order creation + payment verification)
+   MENU (server-side)
    ---------------------------------------------------------
-   Same safety approach as Twilio above: don't let a missing/invalid
-   key crash the whole server. Payment routes just return a clear
-   "not configured" error until real keys are added.
+   Defined here so prices/names can never be tampered with from the
+   browser. Keep this in sync with the MENU object in
+   qr-restaurant-page.html when you edit items.
    --------------------------------------------------------- */
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-const razorpayConfigured = !!(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_KEY_ID.startsWith('rzp_'));
-
-if (!razorpayConfigured) {
-  console.warn('[Razorpay] Not configured (missing/invalid RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET). Payment endpoints will return an error until this is fixed. Rest of the server will run normally.');
-}
-
-const razorpay = razorpayConfigured
-  ? new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET })
-  : null;
-
-// Menu is defined here (server-side) so prices/names can never be tampered
-// with from the browser. Keep this in sync with the MENU object in
-// qr-restaurant-page.html when you edit items.
 const MENU = {
   s1: { name: 'Paneer Tikka', price: 220 },
   s2: { name: 'Chicken 65', price: 260 },
@@ -136,19 +119,22 @@ function saveOrders(orders) {
   fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
 }
 
-// POST /api/create-order   { phone, items: [{id, qty}] }
-app.post('/api/create-order', async (req, res) => {
-  if (!razorpayConfigured) {
-    return res.status(503).json({ ok: false, error: 'Payments are not configured yet on the server. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.' });
-  }
+// POST /api/create-order   { phone, items: [{id, qty}], paymentMethod: 'cod' | 'upi' }
+// No payment gateway involved — this just records the order.
+// Every order starts as "pending". Only the owner can mark it "paid",
+// from the dashboard, after actually confirming they received the
+// money (cash in hand, or checking their UPI app / bank for the
+// incoming payment). Nothing here auto-marks anything as paid.
+app.post('/api/create-order', (req, res) => {
   try {
-    const { phone, items } = req.body; // items: [{ id: 'm1', qty: 2 }, ...]
+    const { phone, items, paymentMethod } = req.body; // items: [{ id: 'm1', qty: 2 }, ...]
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ ok: false, error: 'Cart is empty' });
     }
     if (!phone || !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ ok: false, error: 'Valid phone number required' });
     }
+    const method = (paymentMethod === 'upi') ? 'upi' : 'cod';
 
     let amount = 0;
     const lineItems = [];
@@ -159,56 +145,24 @@ app.post('/api/create-order', async (req, res) => {
       lineItems.push({ id: line.id, name: item.name, qty: line.qty, price: item.price });
     }
 
-    const rzpOrder = await razorpay.orders.create({
-      amount: amount * 100, // paise
-      currency: 'INR',
-      receipt: `order_${Date.now()}`,
-    });
-
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const orders = loadOrders();
     const localOrder = {
-      id: rzpOrder.id,
+      id: orderId,
       phone,
       items: lineItems,
       amount,
-      status: 'pending', // pending | paid
+      paymentMethod: method, // 'cod' | 'upi'
+      status: 'pending', // pending | paid — owner flips this manually
       createdAt: new Date().toISOString(),
     };
     orders.unshift(localOrder); // newest first
     saveOrders(orders);
 
-    res.json({ ok: true, order: rzpOrder, key_id: RAZORPAY_KEY_ID });
+    res.json({ ok: true, order: { id: orderId, amount } });
   } catch (err) {
     console.error('create-order error:', err.message);
     res.status(500).json({ ok: false, error: 'Could not create order' });
-  }
-});
-
-// POST /api/verify-payment
-// { razorpay_order_id, razorpay_payment_id, razorpay_signature }
-app.post('/api/verify-payment', (req, res) => {
-  if (!razorpayConfigured) {
-    return res.status(503).json({ ok: false, error: 'Payments are not configured yet on the server. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.' });
-  }
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-  const expectedSignature = crypto
-    .createHmac('sha256', RAZORPAY_KEY_SECRET)
-    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-    .digest('hex');
-
-  if (expectedSignature === razorpay_signature) {
-    const orders = loadOrders();
-    const order = orders.find(o => o.id === razorpay_order_id);
-    if (order) {
-      order.status = 'paid';
-      order.paymentId = razorpay_payment_id;
-      order.paidAt = new Date().toISOString();
-      saveOrders(orders);
-    }
-    res.json({ ok: true, verified: true });
-  } else {
-    res.status(400).json({ ok: false, verified: false, error: 'Signature mismatch — possible tampering' });
   }
 });
 

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code Generator — Swad Kitchen</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body{ font-family: sans-serif; background:#FBF4EA; display:flex; flex-direction:column;
+        align-items:center; padding:60px 20px; color:#2B1B12; }
+  h1{ font-size:20px; margin-bottom:6px; }
+  p{ color:#6B5A4E; font-size:14px; margin-bottom:24px; text-align:center; max-width:320px; }
+  input{ width:320px; max-width:80vw; padding:12px 14px; border:1.5px solid #ddd; border-radius:8px;
+         font-size:14px; margin-bottom:14px; }
+  button{ background:#8A2A1F; color:#FBF4EA; border:none; padding:12px 22px; border-radius:8px;
+          font-weight:600; cursor:pointer; margin-bottom:28px; }
+  #qr{ padding:20px; background:white; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
+  #downloadBtn{ display:none; margin-top:16px; background:#E0982C; color:#2B1B12; }
+</style>
+</head>
+<body>
+  <h1>Generate your table QR code</h1>
+  <p>Paste the live URL of your hosted order page (e.g. from Netlify/Vercel) below.</p>
+  <input id="urlInput" type="text" placeholder="https://swadkitchen.netlify.app" value="https://swadkitchen.example.com">
+  <button onclick="generate()">Generate QR</button>
+  <div id="qr"></div>
+  <button id="downloadBtn" onclick="download()">Download PNG</button>
+
+<script>
+let qrcode;
+function generate(){
+  document.getElementById('qr').innerHTML = '';
+  const url = document.getElementById('urlInput').value.trim();
+  if(!url) return;
+  qrcode = new QRCode(document.getElementById('qr'), {
+    text: url, width: 260, height: 260,
+    colorDark: "#2B1B12", colorLight: "#ffffff"
+  });
+  document.getElementById('downloadBtn').style.display = 'inline-block';
+}
+function download(){
+  const img = document.querySelector('#qr img') || document.querySelector('#qr canvas');
+  const link = document.createElement('a');
+  link.download = 'swad-kitchen-qr.png';
+  link.href = img.tagName === 'CANVAS' ? img.toDataURL() : img.src;
+  link.click();
+}
+generate();
+</script>
+</body>
+</html>

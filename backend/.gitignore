@@ -1,0 +1,8 @@
+# Never commit this — it holds your real Twilio/Razorpay secrets
+.env
+
+# Orders database (local order history — don't need it in git)
+orders.json
+
+# Dependencies
+node_modules/

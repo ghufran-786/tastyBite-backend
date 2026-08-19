@@ -1,0 +1,18 @@
+{
+  "name": "swad-kitchen-backend",
+  "version": "1.0.0",
+  "description": "Backend for QR order page: OTP verification (Twilio) + Razorpay payments",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "twilio": "^5.3.0",
+    "razorpay": "^2.9.4"
+  }
+}

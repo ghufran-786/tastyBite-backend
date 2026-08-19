@@ -1,8 +1,9 @@
 # TastyBites — QR Order Website
 
-See backend/README.md-style notes inline. Key points:
-- Payment: Cash on Delivery or UPI deep-link (no gateway). Set UPI_ID in qr-restaurant-page.html.
+- Live customer link: https://tastybites-786.netlify.app/
+  (pre-filled in backend/qr-generator.html — just open it and click Generate QR)
+- Payment: Cash on Delivery or UPI deep-link, UPI ID = falakquraishi@ybl
+- Social icons in the header: Instagram, Facebook, YouTube, WhatsApp
 - Every order gets a 4-digit Order # shown to the customer and on the owner dashboard.
 - Orders always start "Pending" — owner marks "Paid" manually after confirming payment.
-- Set BACKEND_URL in qr-restaurant-page.html to your Render backend.
-- Once your QR is printed, keep redeploying to the SAME Netlify site — never a new one.
+- Once printed, keep redeploying qr-restaurant-page.html to the SAME Netlify site — never a new one, or the QR breaks.

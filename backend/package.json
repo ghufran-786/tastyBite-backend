@@ -1,7 +1,7 @@
 {
   "name": "swad-kitchen-backend",
   "version": "1.0.0",
-  "description": "Backend for QR order page: OTP verification (Twilio) + COD/UPI order tracking",
+  "description": "Backend for QR order page: OTP verification (Twilio), Firebase Firestore order storage, COD/UPI order tracking",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -12,6 +12,7 @@
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "twilio": "^5.3.0"
+    "twilio": "^5.3.0",
+    "firebase-admin": "^12.3.1"
   }
 }

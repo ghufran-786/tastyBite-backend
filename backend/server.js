@@ -4,6 +4,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const twilio = require('twilio');
+const admin = require('firebase-admin');
 
 const app = express();
 app.use(cors());
@@ -18,34 +19,42 @@ app.use(express.json());
    just return a clear "not configured" error until you add real
    Twilio credentials — everything else (orders, payments, dashboard)
    keeps working fine in the meantime.
+
+   DEMO FALLBACK: while Twilio isn't configured, the fixed code
+   "123456" is accepted for ANY phone number so you can keep testing
+   the full order flow without real SMS. The moment real Twilio
+   credentials are added, this fallback automatically stops being
+   used — only real SMS-verified codes work from then on.
    --------------------------------------------------------- */
 const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
+const DEMO_OTP_CODE = '123456';
 
 let twilioClient = null;
-if (TWILIO_SID && TWILIO_SID.startsWith('AC') && TWILIO_TOKEN) {
+const twilioConfigured = !!(TWILIO_SID && TWILIO_SID.startsWith('AC') && TWILIO_TOKEN && VERIFY_SERVICE_SID);
+if (twilioConfigured) {
   twilioClient = twilio(TWILIO_SID, TWILIO_TOKEN);
 } else {
-  console.warn('[Twilio] Not configured (missing/invalid TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN). OTP endpoints will return an error until this is fixed. Rest of the server will run normally.');
+  console.warn(`[Twilio] Not configured — using DEMO OTP mode. Any phone number + code "${DEMO_OTP_CODE}" will verify successfully. Add real Twilio credentials to enable real SMS.`);
 }
 
 // POST /api/send-otp   { phone: "9876543210" }
 app.post('/api/send-otp', async (req, res) => {
-  if (!twilioClient || !VERIFY_SERVICE_SID) {
-    return res.status(503).json({ ok: false, error: 'SMS OTP is not configured yet on the server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID.' });
+  const { phone } = req.body;
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ ok: false, error: 'Enter a valid 10-digit phone number' });
   }
-  try {
-    const { phone } = req.body;
-    if (!phone || !/^\d{10}$/.test(phone)) {
-      return res.status(400).json({ ok: false, error: 'Enter a valid 10-digit phone number' });
-    }
-    const e164 = `+91${phone}`;
 
+  if (!twilioConfigured) {
+    return res.json({ ok: true, message: 'OTP sent (demo mode — use code 123456)', demo: true });
+  }
+
+  try {
+    const e164 = `+91${phone}`;
     await twilioClient.verify.v2
       .services(VERIFY_SERVICE_SID)
       .verifications.create({ to: e164, channel: 'sms' });
-
     res.json({ ok: true, message: 'OTP sent' });
   } catch (err) {
     console.error('send-otp error:', err.message);
@@ -55,23 +64,25 @@ app.post('/api/send-otp', async (req, res) => {
 
 // POST /api/verify-otp   { phone: "9876543210", code: "123456" }
 app.post('/api/verify-otp', async (req, res) => {
-  if (!twilioClient || !VERIFY_SERVICE_SID) {
-    return res.status(503).json({ ok: false, error: 'SMS OTP is not configured yet on the server. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID.' });
+  const { phone, code } = req.body;
+  if (!phone || !code) {
+    return res.status(400).json({ ok: false, error: 'Phone and code are required' });
   }
-  try {
-    const { phone, code } = req.body;
-    if (!phone || !code) {
-      return res.status(400).json({ ok: false, error: 'Phone and code are required' });
-    }
-    const e164 = `+91${phone}`;
 
+  if (!twilioConfigured) {
+    if (code === DEMO_OTP_CODE) {
+      return res.json({ ok: true, verified: true, demo: true });
+    }
+    return res.status(400).json({ ok: false, verified: false, error: `Incorrect code. (Demo mode is on — use ${DEMO_OTP_CODE})` });
+  }
+
+  try {
+    const e164 = `+91${phone}`;
     const check = await twilioClient.verify.v2
       .services(VERIFY_SERVICE_SID)
       .verificationChecks.create({ to: e164, code });
 
     if (check.status === 'approved') {
-      // TODO: issue your own session token / JWT here so the frontend
-      // can prove "this phone is verified" on later requests.
       res.json({ ok: true, verified: true });
     } else {
       res.status(400).json({ ok: false, verified: false, error: 'Incorrect or expired code' });
@@ -100,23 +111,109 @@ const MENU = {
 };
 
 /* ---------------------------------------------------------
-   ORDER STORAGE
+   ORDER STORAGE — Firebase Firestore
    ---------------------------------------------------------
-   Simple JSON-file "database" so orders survive a server restart.
-   Fine for a single small restaurant; swap for a real database
-   (Postgres/MongoDB/etc.) once order volume grows.
-   --------------------------------------------------------- */
-const ORDERS_FILE = path.join(__dirname, 'orders.json');
+   Primary storage: Firebase Firestore (set FIREBASE_SERVICE_ACCOUNT
+   in your .env / Render environment variables — the full service
+   account JSON, as one line). Orders persist permanently — they
+   survive redeploys, restarts, everything.
 
-function loadOrders() {
+   Fallback: if FIREBASE_SERVICE_ACCOUNT isn't set (e.g. running
+   locally without it configured yet), the server falls back to a
+   local orders.json file so you can still preview/test everything
+   without Firebase. This fallback does NOT persist across Render
+   redeploys — only Firestore does.
+   --------------------------------------------------------- */
+const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+let db = null;
+
+function initFirebase() {
+  if (!FIREBASE_SERVICE_ACCOUNT) {
+    console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT not set — falling back to local orders.json file. Orders will NOT survive redeploys until Firebase is configured.');
+    return;
+  }
+  try {
+    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    db = admin.firestore();
+    console.log('[Firebase] Connected — orders will now persist permanently.');
+  } catch (err) {
+    console.error('[Firebase] Failed to initialize, falling back to local orders.json file:', err.message);
+    db = null;
+  }
+}
+initFirebase();
+
+// ---- File-based fallback (used only if Firebase isn't connected) ----
+const ORDERS_FILE = path.join(__dirname, 'orders.json');
+function loadOrdersFromFile() {
   try {
     return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
   } catch {
     return [];
   }
 }
-function saveOrders(orders) {
+function saveOrdersToFile(orders) {
   fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+}
+
+// ---- Storage abstraction: same functions work whether Firestore is
+// connected or not, so the rest of the code below never needs to
+// know or care which storage is actually being used. ----
+const ORDERS_COLLECTION = 'orders';
+
+async function getAllOrders() {
+  if (db) {
+    const snap = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();
+    return snap.docs.map(d => d.data());
+  }
+  return loadOrdersFromFile();
+}
+async function getOrderById(id) {
+  if (db) {
+    const doc = await db.collection(ORDERS_COLLECTION).doc(id).get();
+    return doc.exists ? doc.data() : null;
+  }
+  return loadOrdersFromFile().find(o => o.id === id) || null;
+}
+async function getOrdersByPhone(phone) {
+  if (db) {
+    // No orderBy combined with where here on purpose — avoids needing a
+    // manually-created Firestore composite index. We sort in code instead.
+    const snap = await db.collection(ORDERS_COLLECTION).where('phone', '==', phone).get();
+    const orders = snap.docs.map(d => d.data());
+    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return orders;
+  }
+  return loadOrdersFromFile()
+    .filter(o => o.phone === phone)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+async function insertOrder(order) {
+  if (db) {
+    await db.collection(ORDERS_COLLECTION).doc(order.id).set(order);
+    return;
+  }
+  const orders = loadOrdersFromFile();
+  orders.unshift(order);
+  saveOrdersToFile(orders);
+}
+async function updateOrder(id, fields) {
+  if (db) {
+    await db.collection(ORDERS_COLLECTION).doc(id).update(fields);
+    return;
+  }
+  const orders = loadOrdersFromFile();
+  const order = orders.find(o => o.id === id);
+  if (order) Object.assign(order, fields);
+  saveOrdersToFile(orders);
+}
+async function displayIdExists(displayId) {
+  if (db) {
+    const snap = await db.collection(ORDERS_COLLECTION).where('displayId', '==', displayId).limit(1).get();
+    return !snap.empty;
+  }
+  return loadOrdersFromFile().some(o => o.displayId === displayId);
 }
 
 // POST /api/create-order   { phone, items: [{id, qty}], paymentMethod: 'cod' | 'upi' }
@@ -125,7 +222,7 @@ function saveOrders(orders) {
 // from the dashboard, after actually confirming they received the
 // money (cash in hand, or checking their UPI app / bank for the
 // incoming payment). Nothing here auto-marks anything as paid.
-app.post('/api/create-order', (req, res) => {
+app.post('/api/create-order', async (req, res) => {
   try {
     const { phone, items, paymentMethod } = req.body; // items: [{ id: 'm1', qty: 2 }, ...]
     if (!Array.isArray(items) || items.length === 0) {
@@ -145,20 +242,17 @@ app.post('/api/create-order', (req, res) => {
       lineItems.push({ id: line.id, name: item.name, qty: line.qty, price: item.price });
     }
 
-    const orders = loadOrders();
-
     // 4-digit order number the customer sees and can quote to staff
     // (e.g. "order #4821"). Internal `id` (order_<timestamp>_<random>)
     // stays the real unique key used everywhere in the code; `displayId`
     // is just the short human-friendly number.
-    const existingDisplayIds = new Set(orders.map(o => o.displayId));
     let displayId;
     do {
       displayId = String(Math.floor(1000 + Math.random() * 9000)); // 1000-9999
-    } while (existingDisplayIds.has(displayId));
+    } while (await displayIdExists(displayId));
 
     const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const localOrder = {
+    const order = {
       id: orderId,
       displayId,
       phone,
@@ -168,8 +262,7 @@ app.post('/api/create-order', (req, res) => {
       status: 'pending', // pending | paid — owner flips this manually
       createdAt: new Date().toISOString(),
     };
-    orders.unshift(localOrder); // newest first
-    saveOrders(orders);
+    await insertOrder(order);
 
     res.json({ ok: true, order: { id: orderId, displayId, amount } });
   } catch (err) {
@@ -184,18 +277,16 @@ app.post('/api/create-order', (req, res) => {
 // to their order. This does NOT mark the order as paid — it's just a
 // note that helps the owner cross-check their bank statement faster
 // when confirming payment. Only the order's own phone number can add it.
-app.post('/api/orders/:id/utr', (req, res) => {
+app.post('/api/orders/:id/utr', async (req, res) => {
   try {
     const { phone, utr } = req.body;
     if (!utr || !String(utr).trim()) {
       return res.status(400).json({ ok: false, error: 'UTR/reference number is required' });
     }
-    const orders = loadOrders();
-    const order = orders.find(o => o.id === req.params.id);
+    const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
     if (order.phone !== phone) return res.status(403).json({ ok: false, error: 'Not your order' });
-    order.utr = String(utr).trim().slice(0, 40);
-    saveOrders(orders);
+    await updateOrder(req.params.id, { utr: String(utr).trim().slice(0, 40) });
     res.json({ ok: true });
   } catch (err) {
     console.error('add-utr error:', err.message);
@@ -207,54 +298,14 @@ app.post('/api/orders/:id/utr', (req, res) => {
 // Lets a customer see their own past orders (order history) on this
 // device — no PIN needed, but only returns orders matching that exact
 // phone number, and only non-sensitive fields.
-app.get('/api/my-orders', (req, res) => {
+app.get('/api/my-orders', async (req, res) => {
   try {
     const phone = req.query.phone;
     if (!phone || !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ ok: false, error: 'Valid phone number required' });
     }
-    const orders = loadOrders();
-    const mine = orders
-      .filter(o => o.phone === phone)
-      .map(o => ({
-        displayId: o.displayId,
-        items: o.items,
-        amount: o.amount,
-        paymentMethod: o.paymentMethod,
-        status: o.status,
-        createdAt: o.createdAt,
-      }));
-    res.json({ ok: true, orders: mine });
-  } catch (err) {
-    console.error('my-orders error:', err.message);
-    res.status(500).json({ ok: false, error: 'Could not load order history' });
-  }
-});
-
-// GET /api/order-status/:id   (public — no PIN. Customer's phone polls
-// this after placing a UPI order, to know the moment the OWNER confirms
-// payment on the dashboard. Only returns minimal status info, not the
-// full order, to keep this endpoint safe to leave open.)
-app.get('/api/order-status/:id', (req, res) => {
-  const orders = loadOrders();
-  const order = orders.find(o => o.id === req.params.id);
-  if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
-  res.json({ ok: true, status: order.status, displayId: order.displayId });
-});
-
-// GET /api/my-orders/:phone   (public — no PIN. Lets a customer see
-// their own past orders by phone number, e.g. for an "Order history"
-// screen. Only returns the last 20 orders for that number, and only
-// the fields needed to display history — not full internal details.)
-app.get('/api/my-orders/:phone', (req, res) => {
-  const phone = req.params.phone;
-  if (!/^\d{10}$/.test(phone)) {
-    return res.status(400).json({ ok: false, error: 'Invalid phone number' });
-  }
-  const orders = loadOrders()
-    .filter(o => o.phone === phone)
-    .slice(0, 20)
-    .map(o => ({
+    const orders = await getOrdersByPhone(phone);
+    const mine = orders.map(o => ({
       displayId: o.displayId,
       items: o.items,
       amount: o.amount,
@@ -262,7 +313,11 @@ app.get('/api/my-orders/:phone', (req, res) => {
       status: o.status,
       createdAt: o.createdAt,
     }));
-  res.json({ ok: true, orders });
+    res.json({ ok: true, orders: mine });
+  } catch (err) {
+    console.error('my-orders error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not load order history' });
+  }
 });
 
 /* ---------------------------------------------------------
@@ -282,22 +337,23 @@ function checkOwnerPin(req, res, next) {
 }
 
 // GET /api/orders   (header: x-owner-pin)
-app.get('/api/orders', checkOwnerPin, (req, res) => {
-  const orders = loadOrders();
+app.get('/api/orders', checkOwnerPin, async (req, res) => {
+  const orders = await getAllOrders();
   res.json({ ok: true, orders });
 });
 
 // POST /api/orders/:id/mark-paid   (header: x-owner-pin)
 // Lets the owner manually mark an order paid (e.g. cash on pickup).
-app.post('/api/orders/:id/mark-paid', checkOwnerPin, (req, res) => {
-  const orders = loadOrders();
-  const order = orders.find(o => o.id === req.params.id);
+app.post('/api/orders/:id/mark-paid', checkOwnerPin, async (req, res) => {
+  const order = await getOrderById(req.params.id);
   if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
-  order.status = 'paid';
-  order.paidAt = new Date().toISOString();
-  order.paymentId = order.paymentId || 'CASH';
-  saveOrders(orders);
-  res.json({ ok: true, order });
+  await updateOrder(req.params.id, {
+    status: 'paid',
+    paidAt: new Date().toISOString(),
+    paymentId: order.paymentId || 'CASH',
+  });
+  const updated = await getOrderById(req.params.id);
+  res.json({ ok: true, order: updated });
 });
 
 const PORT = process.env.PORT || 4000;

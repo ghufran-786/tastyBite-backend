@@ -87,24 +87,35 @@
     color:var(--gold);
     margin-top:-2px;
   }
+  .nonveg-line{
+    font-size:11px; font-weight:600; letter-spacing:0.3px;
+    color:rgba(255,255,255,0.88); margin-top:4px;
+    display:flex; align-items:center; gap:5px;
+  }
+  .nonveg-line::before{
+    content:''; width:10px; height:10px; flex-shrink:0;
+    border:1.5px solid #E8583F; border-radius:2px; position:relative;
+    background:
+      radial-gradient(circle, #E8583F 32%, transparent 34%);
+  }
 
   .socials{
     display:flex;
-    gap:8px;
-    margin-top:16px;
+    gap:7px;
+    margin-top:14px;
     flex-wrap:wrap;
     position:relative; z-index:1;
   }
   .social-icon{
     display:flex; align-items:center; justify-content:center;
-    width:44px; height:44px; border-radius:50%;
+    width:36px; height:36px; border-radius:50%;
     background:rgba(255,255,255,0.16);
     border:1px solid rgba(255,255,255,0.35);
     text-decoration:none;
-    transition:background .15s ease;
+    transition:background .15s ease, transform .12s ease;
   }
-  .social-icon:active{ background:rgba(255,255,255,0.32); }
-  .social-icon svg{ width:23px; height:23px; fill:var(--white); }
+  .social-icon:active{ background:rgba(255,255,255,0.32); transform:scale(0.92); }
+  .social-icon svg{ width:18px; height:18px; fill:var(--white); }
 
   .body-pad{ padding:26px 24px; flex:1; }
 
@@ -180,16 +191,24 @@
   .verified-strip{
     display:flex; align-items:center; gap:8px;
     background:var(--green-pale); color:var(--green-deep);
-    font-size:12.5px; font-weight:600; padding:10px 24px;
+    font-size:12px; font-weight:700; padding:11px 24px;
     border-bottom:1px solid var(--line);
   }
-  .cat-tabs{
-    display:flex; gap:8px; padding:16px 24px 4px; overflow-x:auto;
+  .verified-strip .tick{
+    display:flex; align-items:center; justify-content:center;
+    width:16px; height:16px; border-radius:50%; flex-shrink:0;
+    background:var(--green-deep); color:#fff; font-size:10px;
   }
+  .cat-tabs{
+    display:flex; gap:8px; padding:16px 24px 6px; overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .cat-tabs::-webkit-scrollbar{ display:none; }
   .cat-tab{
     white-space:nowrap; padding:8px 18px; border-radius:100px;
     font-size:13px; font-weight:600; border:1.5px solid var(--line);
-    background:var(--white); color:var(--dark-soft); cursor:pointer;
+    background:var(--green-pale); color:var(--dark-soft); cursor:pointer;
+    transition:background .12s ease, color .12s ease;
   }
   .cat-tab.active{ background:var(--green-deep); border-color:var(--green-deep); color:var(--white); }
 
@@ -211,7 +230,16 @@
     box-shadow: inset 0 0 0 9px white, 0 2px 6px rgba(0,0,0,0.06);
   }
   .item-info{ flex:1; }
-  .item-name{ font-weight:600; font-size:14.5px; margin-bottom:2px; font-family:'Poppins',sans-serif; }
+  .item-name-row{ display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+  .nonveg-mark{
+    display:inline-block; width:12px; height:12px; flex-shrink:0;
+    border:1.5px solid var(--red-off); border-radius:2px; position:relative;
+  }
+  .nonveg-mark::after{
+    content:''; position:absolute; top:50%; left:50%; width:6px; height:6px;
+    background:var(--red-off); border-radius:50%; transform:translate(-50%,-50%);
+  }
+  .item-name{ font-weight:600; font-size:14.5px; font-family:'Poppins',sans-serif; }
   .item-desc{ font-size:12px; color:var(--dark-soft); line-height:1.4; margin-bottom:6px; }
   .item-price{ font-weight:700; font-size:13.5px; color:var(--green-deep); }
   .qty-add{
@@ -230,30 +258,114 @@
     width:18px; cursor:pointer; font-weight:700;
   }
 
-  .cart-fab{
-    position:fixed; top:16px; right:calc(50% - 220px + 16px);
-    z-index:60;
-    background:var(--gold); color:var(--dark); border:none;
-    display:flex; align-items:center; gap:8px;
-    padding:11px 18px 11px 14px; border-radius:100px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.22);
-    cursor:pointer; font-family:'Poppins',sans-serif;
+  .fab-row{
+    position:fixed; top:14px; right:calc(50% - 220px + 14px);
+    z-index:60; display:flex; align-items:center; gap:8px;
+    max-width:calc(100% - 28px);
   }
+  .fab-row.fab-hidden{ display:none; }
   @media (max-width:472px){
-    .cart-fab{ right:16px; }
+    .fab-row{ right:14px; }
   }
-  .cart-fab.hidden{ display:none; }
-  .cart-fab .cart-icon{ font-size:18px; line-height:1; }
-  .cart-fab .cart-info{ display:flex; flex-direction:column; align-items:flex-start; line-height:1.15; }
-  .cart-fab .count{ font-size:10.5px; font-weight:600; opacity:0.75; }
-  .cart-fab .total{ font-weight:700; font-size:14px; color:var(--dark); }
+
+  .cart-fab{
+    position:relative;
+    background:var(--gold); color:var(--dark); border:none;
+    display:flex; align-items:center; gap:7px;
+    padding:9px 15px 9px 12px; border-radius:100px;
+    box-shadow:0 6px 16px rgba(0,0,0,0.2);
+    cursor:pointer; font-family:'Poppins',sans-serif;
+    flex-shrink:0;
+  }
+  .cart-fab.empty{ background:#fff; box-shadow:0 4px 10px rgba(0,0,0,0.12); }
+  .cart-fab.empty .total{ color:var(--dark-soft); font-size:12px; }
+  .cart-fab .cart-icon{ font-size:16px; line-height:1; }
+  .cart-fab .cart-info{ display:flex; flex-direction:column; align-items:flex-start; line-height:1.12; }
+  .cart-fab .count{ font-size:10px; font-weight:600; opacity:0.75; }
+  .cart-fab .total{ font-weight:700; font-size:13px; color:var(--dark); }
   .cart-fab .badge{
     position:absolute; top:-6px; left:-6px;
     background:var(--green-deep); color:#fff;
-    width:20px; height:20px; border-radius:50%;
+    width:18px; height:18px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    font-size:11px; font-weight:700; border:2px solid var(--white);
+    font-size:10px; font-weight:700; border:2px solid var(--white);
   }
+  .cart-fab.empty .badge{ display:none; }
+
+  .orders-fab{
+    position:relative;
+    background:#fff; color:var(--green-deep); border:1.5px solid var(--green-deep);
+    display:flex; align-items:center; gap:5px;
+    padding:8px 13px; border-radius:100px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    cursor:pointer; font-family:'Poppins',sans-serif; font-weight:700; font-size:11.5px;
+    flex-shrink:0;
+  }
+  .orders-fab .orders-icon{ font-size:14px; }
+
+  /* Ultra-compact fallback on very narrow phones: icons + numbers only */
+  @media (max-width:360px){
+    .cart-fab{ padding:8px 12px 8px 10px; }
+    .cart-fab .count{ display:none; }
+    .orders-fab span:last-child{ display:none; }
+    .orders-fab{ padding:8px 10px; }
+  }
+
+  .waiting-spinner{
+    width:34px; height:34px; margin:18px auto 0;
+    border:4px solid var(--green-pale); border-top-color:var(--green-deep);
+    border-radius:50%; animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .upi-app-row{
+    display:flex; gap:8px; justify-content:center; margin-top:12px;
+    padding:0 24px;
+  }
+  .upi-app-btn{
+    flex:1; max-width:110px; text-align:center;
+    border:1.5px solid var(--green-deep); color:var(--green-deep);
+    background:#fff; padding:9px 8px; border-radius:100px;
+    font-size:12px; font-weight:700; text-decoration:none;
+  }
+  .upi-app-btn:active{ background:var(--green-pale); }
+  .upi-hint{
+    font-size:11px; color:var(--dark-soft); margin:16px 24px 0;
+    line-height:1.5; background:var(--green-pale); padding:10px 12px;
+    border-radius:10px;
+  }
+
+  .utr-box{
+    margin:26px 24px 0; padding:16px; border:1.5px dashed var(--line);
+    border-radius:14px; background:#fff;
+  }
+  .utr-label{ font-size:12px; color:var(--dark-soft); margin-bottom:8px; text-align:left; }
+  .utr-input{
+    width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px;
+    font-size:13.5px; margin-bottom:8px; box-sizing:border-box;
+  }
+  .btn-small{
+    background:var(--green-deep); color:#fff; border:none; padding:8px 16px;
+    border-radius:100px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .utr-status{ font-size:11.5px; color:var(--green-deep); margin-top:6px; text-align:left; min-height:14px; }
+
+  .history-list{ padding:16px 24px 30px; display:flex; flex-direction:column; gap:12px; }
+  .history-card{
+    border:1px solid var(--line); border-radius:14px; padding:14px 16px;
+    background:#fff;
+  }
+  .history-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .history-id{ font-weight:700; font-size:14px; color:var(--green-deep); }
+  .history-status{
+    font-size:11px; font-weight:700; padding:3px 10px; border-radius:100px; text-transform:uppercase;
+  }
+  .history-status.paid{ background:#E4F5E6; color:#20693B; }
+  .history-status.pending{ background:#FDECD2; color:#A15E06; }
+  .history-items{ font-size:13px; color:var(--dark-soft); margin-bottom:6px; line-height:1.5; }
+  .history-bottom{ display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--dark-soft); }
+  .history-amount{ font-weight:700; color:var(--dark); font-size:14px; }
+  .history-empty{ text-align:center; color:var(--dark-soft); padding:60px 20px; font-size:13.5px; }
 
   /* ---------- Checkout ---------- */
   .back-row{ display:flex; align-items:center; gap:10px; padding:20px 24px 0; }
@@ -300,6 +412,7 @@
         <div>
           <div class="brand-name">TastyBites</div>
           <div class="brand-tag">Cloud Kitchen</div>
+          <div class="nonveg-line">100% Non-Veg &middot; Freshly Prepared</div>
         </div>
       </div>
       <div class="socials">
@@ -354,26 +467,33 @@
         <div>
           <div class="brand-name" style="font-size:34px;">TastyBites</div>
           <div class="brand-tag" style="font-size:21px;">Cloud Kitchen</div>
+          <div class="nonveg-line">100% Non-Veg &middot; Freshly Prepared</div>
         </div>
       </div>
       <div class="socials">
         <a class="social-icon" href="https://www.instagram.com/tas_tybites786?igsh=MWJoZTcyanR0dG9vdA==" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2c2.7 0 3.05.01 4.12.06 1.06.05 1.79.22 2.43.47.66.26 1.22.6 1.77 1.15.55.55.9 1.11 1.15 1.77.25.64.42 1.37.47 2.43.05 1.07.06 1.42.06 4.12s-.01 3.05-.06 4.12c-.05 1.06-.22 1.79-.47 2.43-.26.66-.6 1.22-1.15 1.77-.55.55-1.11.9-1.77 1.15-.64.25-1.37.42-2.43.47-1.07.05-1.42.06-4.12.06s-3.05-.01-4.12-.06c-1.06-.05-1.79-.22-2.43-.47-.66-.26-1.22-.6-1.77-1.15-.55-.55-.9-1.11-1.15-1.77-.25-.64-.42-1.37-.47-2.43C2.01 15.05 2 14.7 2 12s.01-3.05.06-4.12c.05-1.06.22-1.79.47-2.43.26-.66.6-1.22 1.15-1.77.55-.55 1.11-.9 1.77-1.15.64-.25 1.37-.42 2.43-.47C8.95 2.01 9.3 2 12 2zm0 3.8a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4zm0 2.2a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm6.4-2.4a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0z"/></svg></a><a class="social-icon" href="https://facebook.com/tastybites" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.17 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.5-3.89 3.78-3.89 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22c4.78-.77 8.44-4.94 8.44-9.94z"/></svg></a><a class="social-icon" href="https://youtube.com/@tastybites" aria-label="YouTube"><svg viewBox="0 0 24 24"><path d="M21.58 7.19a2.75 2.75 0 0 0-1.94-1.95C17.9 4.75 12 4.75 12 4.75s-5.9 0-7.64.49A2.75 2.75 0 0 0 2.42 7.2 28.7 28.7 0 0 0 1.94 12a28.7 28.7 0 0 0 .48 4.81 2.75 2.75 0 0 0 1.94 1.95c1.74.49 7.64.49 7.64.49s5.9 0 7.64-.49a2.75 2.75 0 0 0 1.94-1.95c.32-1.58.48-3.2.48-4.81a28.7 28.7 0 0 0-.48-4.81zM9.9 15.02V8.98L15.5 12l-5.6 3.02z"/></svg></a><a class="social-icon" href="https://wa.me/message/IWUXNJHIMZR6H1" aria-label="WhatsApp"><svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.29-1.39a9.87 9.87 0 0 0 4.75 1.21h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.8c2.2 0 4.26.86 5.82 2.42a8.15 8.15 0 0 1 2.41 5.79c0 4.53-3.69 8.21-8.23 8.21a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.14.82.84-3.06-.2-.31a8.14 8.14 0 0 1-1.26-4.4c0-4.53 3.69-8.14 8.24-8.14zm-4.5 4.68c-.16 0-.42.06-.64.31s-.85.83-.85 2.02.87 2.35.99 2.51c.12.16 1.7 2.6 4.13 3.63.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28-.24-.13-1.44-.71-1.66-.79-.22-.08-.39-.13-.55.13-.16.25-.63.79-.78.95-.14.16-.29.18-.53.06-.24-.13-1.03-.38-1.96-1.21-.72-.65-1.21-1.44-1.35-1.69-.14-.24-.01-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.13-.55-1.34-.76-1.83-.2-.48-.4-.42-.55-.42h-.47z"/></svg></a>
       </div>
     </div>
-    <div class="verified-strip">✓ Number verified — Table orders enabled</div>
+    <div class="verified-strip"><span class="tick">✓</span> Number verified — Table orders enabled</div>
     <div class="cat-tabs" id="catTabs"></div>
     <div class="menu-list" id="menuList"></div>
   </div>
 
-  <!-- Floating cart button: always visible top-right, tap to view cart -->
-  <button class="cart-fab hidden" id="cartBar" onclick="showScreen('screen-checkout'); renderReceipt();">
-    <span class="badge" id="cartBadge">0</span>
-    <span class="cart-icon">🛒</span>
-    <span class="cart-info">
-      <span class="count" id="cartCount">0 items</span>
-      <span class="total" id="cartTotal">₹0</span>
-    </span>
-  </button>
+  <!-- Cart + Orders: shown once the customer is logged in (OTP verified), same row, cart primary -->
+  <div class="fab-row fab-hidden" id="fabRow">
+    <button class="cart-fab" id="cartBar" onclick="openCart()">
+      <span class="badge" id="cartBadge">0</span>
+      <span class="cart-icon">🛒</span>
+      <span class="cart-info">
+        <span class="count" id="cartCount">Cart</span>
+        <span class="total" id="cartTotal">₹0</span>
+      </span>
+    </button>
+    <button class="orders-fab" id="ordersFab" onclick="openOrderHistory()">
+      <span class="orders-icon">📋</span>
+      <span>Orders</span>
+    </button>
+  </div>
 
   <!-- SCREEN 4: CHECKOUT -->
   <div class="screen" id="screen-checkout">
@@ -393,10 +513,27 @@
   <!-- SCREEN 4b: WAITING FOR UPI PAYMENT (shown after redirecting to UPI app) -->
   <div class="screen success-screen" id="screen-upi-wait">
     <div class="success-icon" style="background:var(--gold);">⏳</div>
-    <h2 class="step-title">Complete payment in your UPI app</h2>
-    <p class="step-sub">If your UPI app didn't open, tap the button below to try again. Once you've paid, tap "I've paid" — the owner will confirm receipt shortly.</p>
-    <button class="btn btn-green" style="max-width:280px; margin-bottom:10px;" onclick="retryUpi()">Open UPI app again</button>
-    <button class="btn btn-ghost" style="max-width:280px;" onclick="showScreen('screen-success')">I've paid</button>
+    <h2 class="step-title">Waiting for payment confirmation</h2>
+    <div class="order-id-badge" id="upiOrderIdBadge" style="display:none;">Order #<span id="upiOrderIdValue"></span></div>
+    <p class="step-sub" id="upiWaitSub">If your UPI app didn't open automatically, tap the button below.</p>
+
+    <a class="btn btn-green upi-link" id="upiMainLink" href="#" style="max-width:280px; display:block; text-align:center; text-decoration:none; box-sizing:border-box;">📱 Tap to pay via UPI</a>
+
+    <div class="upi-app-row" id="upiAppRow">
+      <a class="upi-app-btn" id="upiGpay" href="#">GPay</a>
+      <a class="upi-app-btn" id="upiPhonepe" href="#">PhonePe</a>
+      <a class="upi-app-btn" id="upiPaytm" href="#">Paytm</a>
+    </div>
+
+    <div class="upi-hint">Opened this page inside Instagram/WhatsApp/Facebook? Tap the ⋯ menu and choose "Open in Chrome/Safari" — payment apps often can't open from inside those apps.</div>
+
+    <div class="waiting-spinner" aria-hidden="true"></div>
+    <div class="utr-box">
+      <div class="utr-label">Optional: paste your UPI reference number (UTR)</div>
+      <input type="text" id="utrInput" class="utr-input" placeholder="e.g. 402517XXXXXX" maxlength="40">
+      <button class="btn-small" onclick="submitUtr()">Save reference</button>
+      <div class="utr-status" id="utrStatus"></div>
+    </div>
   </div>
 
   <!-- SCREEN 5: SUCCESS -->
@@ -408,22 +545,36 @@
     <button class="btn btn-ghost" style="max-width:200px;" onclick="resetApp()">Order again</button>
   </div>
 
+  <!-- SCREEN 6: ORDER HISTORY -->
+  <div class="screen" id="screen-history">
+    <div class="back-row">
+      <button class="back-btn" onclick="closeOrderHistory()">←</button>
+      <h2 class="step-title" style="margin:0;">My Orders</h2>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </div>
+
 </div>
+
 
 <script>
 /* ============================================================
    EDIT ZONE — replace with your real restaurant details
    ============================================================ */
 const RESTAURANT = { name: "TastyBites", initials: "TB" };
+/* All items below are placeholder/example entries — since TastyBites is a
+   100% non-veg kitchen, every dish here is now non-veg (the earlier veg
+   placeholders like Paneer Tikka / Dal Makhani / Veg Biryani were swapped
+   out). Edit names, descriptions and prices to match your real menu. */
 const MENU = {
   "Starters": [
-    { id:'s1', name:'Paneer Tikka', desc:'Charred cottage cheese, mint chutney', price:220, emoji:'🧆' },
-    { id:'s2', name:'Chicken 65', desc:'Spicy fried chicken, curry leaves', price:260, emoji:'🍗' },
+    { id:'s1', name:'Chicken Malai Tikka', desc:'Creamy marinated chicken, chargrilled', price:220, emoji:'🍢', nonveg:true },
+    { id:'s2', name:'Chicken 65', desc:'Spicy fried chicken, curry leaves', price:260, emoji:'🍗', nonveg:true },
   ],
   "Mains": [
-    { id:'m1', name:'Butter Chicken', desc:'Tomato-butter gravy, served with rice', price:340, emoji:'🍛' },
-    { id:'m2', name:'Dal Makhani', desc:'Slow-cooked black lentils', price:210, emoji:'🍲' },
-    { id:'m3', name:'Veg Biryani', desc:'Basmati rice, saffron, raita', price:230, emoji:'🍚' },
+    { id:'m1', name:'Butter Chicken', desc:'Tomato-butter gravy, served with rice', price:340, emoji:'🍛', nonveg:true },
+    { id:'m2', name:'Mutton Curry', desc:'Slow-cooked mutton, home-style spices', price:320, emoji:'🍲', nonveg:true },
+    { id:'m3', name:'Chicken Biryani', desc:'Basmati rice, saffron, raita', price:250, emoji:'🍚', nonveg:true },
   ],
   "Drinks": [
     { id:'d1', name:'Masala Chaas', desc:'Spiced buttermilk', price:70, emoji:'🥤' },
@@ -434,7 +585,7 @@ const MENU = {
    once it's live, e.g. "https://your-backend.onrender.com". Leaving it
    blank keeps the page in demo mode — OTP/orders are simulated and
    nothing is sent to the owner dashboard. */
-const BACKEND_URL = "";
+const BACKEND_URL = "https://tastybite-backend-bil3.onrender.com";
 /* ============================================================ */
 
 /* UPI_ID: your business UPI ID (VPA), e.g. "yourrestaurant@okhdfcbank".
@@ -453,6 +604,7 @@ let lastUpiUrl = null;
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if(id !== 'screen-upi-wait') stopOrderStatusPolling();
 }
 
 function sendOtp(){
@@ -503,7 +655,16 @@ async function verifyOtp(){
   }
 
   buildMenu();
+  showFabs();
   showScreen('screen-menu');
+}
+
+function showFabs(){
+  document.getElementById('fabRow').classList.remove('fab-hidden');
+}
+
+function hideFabs(){
+  document.getElementById('fabRow').classList.add('fab-hidden');
 }
 
 function buildMenu(){
@@ -534,7 +695,7 @@ function buildMenu(){
       row.innerHTML = `
         <div class="plate">${item.emoji}</div>
         <div class="item-info">
-          <div class="item-name">${item.name}</div>
+          <div class="item-name-row">${item.nonveg ? '<span class="nonveg-mark" aria-label="Non-veg"></span>' : ''}<span class="item-name">${item.name}</span></div>
           <div class="item-desc">${item.desc}</div>
           <div class="item-price">₹${item.price}</div>
         </div>
@@ -572,17 +733,22 @@ function changeQty(id, delta){
 function updateCartBar(){
   const bar = document.getElementById('cartBar');
   const ids = Object.keys(cart);
-  if(ids.length === 0){ bar.classList.add('hidden'); return; }
-  bar.classList.remove('hidden');
   let count=0, total=0;
   ids.forEach(id=>{
     const item = Object.values(MENU).flat().find(i=>i.id===id);
     count += cart[id];
     total += cart[id]*item.price;
   });
+  if(count === 0){
+    bar.classList.add('empty');
+    document.getElementById('cartCount').textContent = 'Cart';
+    document.getElementById('cartTotal').textContent = 'Empty';
+  } else {
+    bar.classList.remove('empty');
+    document.getElementById('cartCount').textContent = count + (count===1?' item':' items');
+    document.getElementById('cartTotal').textContent = '₹'+total;
+  }
   document.getElementById('cartBadge').textContent = count;
-  document.getElementById('cartCount').textContent = count + (count===1?' item':' items');
-  document.getElementById('cartTotal').textContent = '₹'+total;
 }
 
 function renderReceipt(){
@@ -612,12 +778,67 @@ async function placeOrder(method){
   if(amount === 0){ alert('Your cart is empty'); return; }
   const itemsPayload = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
 
-  // ---- Backend connected: create a real, price-verified order first ----
-  // This is also what makes the order show up on the owner dashboard.
-  // The order always starts as "pending" — only the OWNER can mark it
-  // paid from the dashboard once they've actually received the money
-  // (whether that's cash in hand, or a UPI payment they've checked
-  // landed in their account). Nothing here auto-marks an order as paid.
+  if(method === 'upi'){
+    const note = encodeURIComponent(`${RESTAURANT.name} order`);
+    const payeeName = encodeURIComponent(RESTAURANT.name);
+    const amt = amount.toFixed(2);
+    const pa = encodeURIComponent(UPI_ID);
+
+    // Generic UPI link (works with any UPI app's "chooser") + a couple of
+    // app-specific link variants some phones handle more reliably than
+    // the generic one. All of these are REAL <a href> links on the page
+    // (not just a JS redirect) — tapping a real link is the one thing
+    // every mobile browser reliably allows to open another app, even
+    // when an automatic JS-triggered redirect gets silently blocked.
+    lastUpiUrl = `upi://pay?pa=${pa}&pn=${payeeName}&am=${amt}&cu=INR&tn=${note}`;
+    const gpayUrl = `tez://upi/pay?pa=${pa}&pn=${payeeName}&am=${amt}&cu=INR&tn=${note}`;
+    const phonepeUrl = `phonepe://pay?pa=${pa}&pn=${payeeName}&am=${amt}&cu=INR&tn=${note}`;
+    const paytmUrl = `paytmmp://pay?pa=${pa}&pn=${payeeName}&am=${amt}&cu=INR&tn=${note}`;
+
+    const mainLink = document.getElementById('upiMainLink');
+    mainLink.href = lastUpiUrl;
+    document.getElementById('upiGpay').href = gpayUrl;
+    document.getElementById('upiPhonepe').href = phonepeUrl;
+    document.getElementById('upiPaytm').href = paytmUrl;
+
+    document.getElementById('upiOrderIdBadge').style.display = 'none';
+    document.getElementById('utrInput').value = '';
+    document.getElementById('utrStatus').textContent = '';
+    document.getElementById('upiWaitSub').textContent = "If your UPI app didn't open automatically, tap the button below.";
+    cart = {};
+    updateCartBar();
+    showScreen('screen-upi-wait');
+
+    // Try an automatic open once, via a real click on the visible link
+    // (more reliable across browsers than window.location.href for
+    // custom schemes). If it's blocked or nothing handles it, the link
+    // stays right there on screen for the customer to tap themselves —
+    // that always works since it's a direct, visible user tap.
+    mainLink.click();
+
+    // Save the order to the backend in the background — this happens
+    // after the tap attempt above, so it never interferes with it.
+    if(BACKEND_URL){
+      try{
+        const res = await fetch(`${BACKEND_URL}/api/create-order`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method })
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Could not create order');
+        lastOrderId = data.order.id;
+        document.getElementById('upiOrderIdValue').textContent = data.order.displayId;
+        document.getElementById('upiOrderIdBadge').style.display = 'inline-block';
+        startOrderStatusPolling();
+      }catch(err){
+        document.getElementById('utrStatus').textContent = 'Note: could not save this order automatically. Please tell the restaurant your payment reference after paying.';
+      }
+    }
+    return;
+  }
+
+  // ---- Cash on Delivery: no external app redirect involved, so it's
+  // fine to create the order first and only show success once saved. ----
   let displayId = null;
   if(BACKEND_URL){
     try{
@@ -643,24 +864,102 @@ async function placeOrder(method){
     badge.style.display = 'none';
   }
 
-  if(method === 'cod'){
-    document.getElementById('successIcon').textContent = '✓';
-    document.getElementById('successTitle').textContent = 'Order placed!';
-    document.getElementById('successSub').textContent = "You'll pay cash when your order arrives. Show this screen to your server if needed.";
-    showScreen('screen-success');
-  } else {
-    // UPI: build a standard UPI deep link and hand off to the phone's
-    // UPI apps (GPay, PhonePe, Paytm, etc. all respond to upi:// links).
-    const note = encodeURIComponent(`${RESTAURANT.name} order`);
-    const payeeName = encodeURIComponent(RESTAURANT.name);
-    lastUpiUrl = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${payeeName}&am=${amount}&cu=INR&tn=${note}`;
-    showScreen('screen-upi-wait');
-    window.location.href = lastUpiUrl;
+  cart = {};
+  updateCartBar();
+
+  document.getElementById('successIcon').textContent = '✓';
+  document.getElementById('successTitle').textContent = 'Order placed!';
+  document.getElementById('successSub').textContent = "You'll pay cash when your order arrives. Show this screen to your server if needed.";
+  showScreen('screen-success');
+}
+
+async function submitUtr(){
+  const utr = document.getElementById('utrInput').value.trim();
+  const statusEl = document.getElementById('utrStatus');
+  if(!utr){ statusEl.textContent = 'Enter your UPI reference number first.'; return; }
+  if(!BACKEND_URL || !lastOrderId){ statusEl.textContent = 'Saved (demo mode).'; return; }
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/orders/${lastOrderId}/utr`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone: customerPhone, utr })
+    });
+    const data = await res.json();
+    statusEl.textContent = data.ok ? 'Saved — thanks! This helps the restaurant confirm faster.' : (data.error || 'Could not save.');
+  }catch(err){
+    statusEl.textContent = 'Could not reach the server.';
   }
 }
 
-function retryUpi(){
-  if(lastUpiUrl) window.location.href = lastUpiUrl;
+// Poll the backend every few seconds while the customer is on the
+// "waiting for confirmation" screen. The moment the OWNER marks the
+// order paid on their dashboard, this screen auto-advances to the
+// success screen — the customer never has to self-report anything.
+let statusPollTimer = null;
+function startOrderStatusPolling(){
+  stopOrderStatusPolling();
+  if(!BACKEND_URL || !customerPhone) return;
+  statusPollTimer = setInterval(async () => {
+    try{
+      const res = await fetch(`${BACKEND_URL}/api/my-orders?phone=${customerPhone}`);
+      const data = await res.json();
+      if(!data.ok) return;
+      const mine = data.orders.find(o => o.displayId === document.getElementById('upiOrderIdValue').textContent);
+      if(mine && mine.status === 'paid'){
+        stopOrderStatusPolling();
+        document.getElementById('successIcon').textContent = '✓';
+        document.getElementById('successTitle').textContent = 'Payment confirmed!';
+        document.getElementById('successSub').textContent = 'The restaurant has confirmed your payment. Your food is being prepared.';
+        showScreen('screen-success');
+      }
+    }catch(err){ /* silent retry next tick */ }
+  }, 6000);
+}
+function stopOrderStatusPolling(){
+  if(statusPollTimer){ clearInterval(statusPollTimer); statusPollTimer = null; }
+}
+
+/* ---------------- ORDER HISTORY ("My Orders") ---------------- */
+function openCart(){
+  if(Object.keys(cart).length === 0){ alert('Your cart is empty — add some items from the menu first.'); return; }
+  showScreen('screen-checkout');
+  renderReceipt();
+}
+
+async function openOrderHistory(){
+  showScreen('screen-history');
+  const listEl = document.getElementById('historyList');
+  listEl.innerHTML = `<div class="history-empty">Loading your orders…</div>`;
+  if(!BACKEND_URL || !customerPhone){
+    listEl.innerHTML = `<div class="history-empty">Order history isn't available in demo mode.</div>`;
+    return;
+  }
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/my-orders?phone=${customerPhone}`);
+    const data = await res.json();
+    if(!data.ok || data.orders.length === 0){
+      listEl.innerHTML = `<div class="history-empty">No past orders found for this number yet.</div>`;
+      return;
+    }
+    listEl.innerHTML = data.orders.map(o => `
+      <div class="history-card">
+        <div class="history-top">
+          <span class="history-id">Order #${o.displayId}</span>
+          <span class="history-status ${o.status === 'paid' ? 'paid' : 'pending'}">${o.status === 'paid' ? '✓ Paid' : 'Pending'}</span>
+        </div>
+        <div class="history-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>
+        <div class="history-bottom">
+          <span>${o.paymentMethod === 'upi' ? '📱 UPI' : '💵 COD'}</span>
+          <span class="history-amount">₹${o.amount}</span>
+        </div>
+      </div>
+    `).join('');
+  }catch(err){
+    listEl.innerHTML = `<div class="history-empty">Could not load order history right now.</div>`;
+  }
+}
+
+function closeOrderHistory(){
+  showScreen('screen-menu');
 }
 
 function resetApp(){
@@ -682,6 +981,7 @@ function endSession(){
   document.querySelectorAll('.otp-box').forEach(b=>b.value='');
   document.getElementById('phoneInput').value = '';
   updateCartBar();
+  hideFabs();
   showScreen('screen-welcome');
 }
 </script>

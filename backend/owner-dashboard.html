@@ -181,9 +181,9 @@ let ALL_ORDERS = [];
 let currentFilter = 'all';
 
 const DEMO_ORDERS = [
-  { id:'demo1', displayId:'4821', phone:'9876543210', address:'Flat 302, Green Residency, Civil Lines', items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
-  { id:'demo2', displayId:'7305', phone:'9123456780', address:'12, Nehru Nagar, near water tank', items:[{name:'Chicken Biryani',qty:2,price:250}], amount:500, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
-  { id:'demo3', displayId:'2190', phone:'9988776655', address:'Shop 5, Model Town Market', items:[{name:'Chicken Malai Tikka',qty:1,price:220},{name:'Mutton Curry',qty:1,price:320}], amount:540, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
+  { id:'demo1', displayId:'4821', phone:'9876543210', address:{house:'Flat 302, Green Residency', area:'Civil Lines', pincode:'208001', city:'Kanpur', mobile:'9876543210'}, items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
+  { id:'demo2', displayId:'7305', phone:'9123456780', address:{house:'House No. 12', area:'Nehru Nagar, near water tank', pincode:'208002', city:'Kanpur', mobile:'9123456780'}, items:[{name:'Chicken Biryani',qty:2,price:250}], amount:500, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
+  { id:'demo3', displayId:'2190', phone:'9988776655', address:{house:'Shop 5', area:'Model Town Market', pincode:'208003', city:'Kanpur', mobile:'9988776655'}, items:[{name:'Chicken Malai Tikka',qty:1,price:220},{name:'Mutton Curry',qty:1,price:320}], amount:540, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
 ];
 
 async function tryLogin(){
@@ -274,6 +274,15 @@ function timeAgo(iso){
   return `${hrs} hr${hrs>1?'s':''} ago`;
 }
 
+function formatAddress(addr){
+  if(!addr || typeof addr !== 'object' || !addr.house){
+    return '<div class="order-address order-address-missing">📍 No address on file</div>';
+  }
+  const line1 = `${addr.house}, ${addr.area}`;
+  const line2 = `${addr.city} - ${addr.pincode}`;
+  return `<div class="order-address">📍 ${line1}<br>${line2} &middot; 📞 ${addr.mobile}</div>`;
+}
+
 function renderOrders(){
   const list = currentFilter === 'all' ? ALL_ORDERS : ALL_ORDERS.filter(o => o.status === currentFilter);
 
@@ -294,7 +303,7 @@ function renderOrders(){
         <div class="order-phone">+91 ${o.phone} <span class="method-tag">${o.paymentMethod === 'upi' ? '📱 UPI' : '💵 COD'}</span></div>
         <div class="order-time">${timeAgo(o.createdAt)}</div>
         <div class="order-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>
-        ${o.address ? `<div class="order-address">📍 ${o.address}</div>` : '<div class="order-address order-address-missing">📍 No address on file</div>'}
+        ${formatAddress(o.address)}
         ${o.utr ? `<div class="order-utr">UPI Ref: <strong>${o.utr}</strong></div>` : ''}
       </div>
       <div class="order-right">

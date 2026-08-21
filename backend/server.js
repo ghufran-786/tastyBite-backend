@@ -231,9 +231,23 @@ app.post('/api/create-order', async (req, res) => {
     if (!phone || !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ ok: false, error: 'Valid phone number required' });
     }
-    if (!address || !String(address).trim()) {
+
+    // Delivery address: 5 required parts. Validated here too (not just
+    // on the frontend) since the frontend check can always be bypassed.
+    if (!address || typeof address !== 'object') {
       return res.status(400).json({ ok: false, error: 'Delivery address is required' });
     }
+    const house = String(address.house || '').trim();
+    const area = String(address.area || '').trim();
+    const pincode = String(address.pincode || '').trim();
+    const city = String(address.city || '').trim();
+    const mobile = String(address.mobile || '').trim();
+    if (!house) return res.status(400).json({ ok: false, error: 'House/Flat No. is required' });
+    if (!area) return res.status(400).json({ ok: false, error: 'Area/Street/Colony is required' });
+    if (!/^\d{6}$/.test(pincode)) return res.status(400).json({ ok: false, error: 'A valid 6-digit pincode is required' });
+    if (!city) return res.status(400).json({ ok: false, error: 'City is required' });
+    if (!/^\d{10}$/.test(mobile)) return res.status(400).json({ ok: false, error: 'A valid 10-digit contact number is required' });
+
     const method = (paymentMethod === 'upi') ? 'upi' : 'cod';
 
     let amount = 0;
@@ -259,7 +273,7 @@ app.post('/api/create-order', async (req, res) => {
       id: orderId,
       displayId,
       phone,
-      address: String(address).trim().slice(0, 300),
+      address: { house, area, pincode, city, mobile },
       items: lineItems,
       amount,
       paymentMethod: method, // 'cod' | 'upi'

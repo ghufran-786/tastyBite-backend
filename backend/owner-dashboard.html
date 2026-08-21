@@ -94,6 +94,8 @@
   .order-time{ font-size:11.5px; color:var(--dark-soft); margin-top:2px; }
   .order-items{ margin-top:8px; font-size:13px; color:var(--dark-soft); line-height:1.6; }
   .order-utr{ margin-top:6px; font-size:12px; color:var(--green-deep); background:var(--green-pale); display:inline-block; padding:3px 10px; border-radius:100px; }
+  .order-address{ margin-top:6px; font-size:12.5px; color:var(--dark); font-weight:600; max-width:280px; }
+  .order-address-missing{ color:var(--dark-soft); font-weight:400; font-style:italic; }
   .order-right{ text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
   .order-amount{ font-family:'Fredoka',sans-serif; font-size:19px; color:var(--green-deep); }
   .status-badge{
@@ -179,9 +181,9 @@ let ALL_ORDERS = [];
 let currentFilter = 'all';
 
 const DEMO_ORDERS = [
-  { id:'demo1', displayId:'4821', phone:'9876543210', items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
-  { id:'demo2', displayId:'7305', phone:'9123456780', items:[{name:'Veg Biryani',qty:2,price:230}], amount:460, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
-  { id:'demo3', displayId:'2190', phone:'9988776655', items:[{name:'Paneer Tikka',qty:1,price:220},{name:'Dal Makhani',qty:1,price:210}], amount:430, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
+  { id:'demo1', displayId:'4821', phone:'9876543210', address:'Flat 302, Green Residency, Civil Lines', items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
+  { id:'demo2', displayId:'7305', phone:'9123456780', address:'12, Nehru Nagar, near water tank', items:[{name:'Chicken Biryani',qty:2,price:250}], amount:500, paymentMethod:'cod', status:'pending', createdAt:new Date(Date.now()-8*60000).toISOString() },
+  { id:'demo3', displayId:'2190', phone:'9988776655', address:'Shop 5, Model Town Market', items:[{name:'Chicken Malai Tikka',qty:1,price:220},{name:'Mutton Curry',qty:1,price:320}], amount:540, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-2*60000).toISOString() },
 ];
 
 async function tryLogin(){
@@ -292,6 +294,7 @@ function renderOrders(){
         <div class="order-phone">+91 ${o.phone} <span class="method-tag">${o.paymentMethod === 'upi' ? '📱 UPI' : '💵 COD'}</span></div>
         <div class="order-time">${timeAgo(o.createdAt)}</div>
         <div class="order-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>
+        ${o.address ? `<div class="order-address">📍 ${o.address}</div>` : '<div class="order-address order-address-missing">📍 No address on file</div>'}
         ${o.utr ? `<div class="order-utr">UPI Ref: <strong>${o.utr}</strong></div>` : ''}
       </div>
       <div class="order-right">

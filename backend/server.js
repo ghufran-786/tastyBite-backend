@@ -224,12 +224,15 @@ async function displayIdExists(displayId) {
 // incoming payment). Nothing here auto-marks anything as paid.
 app.post('/api/create-order', async (req, res) => {
   try {
-    const { phone, items, paymentMethod } = req.body; // items: [{ id: 'm1', qty: 2 }, ...]
+    const { phone, items, paymentMethod, address } = req.body; // items: [{ id: 'm1', qty: 2 }, ...]
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ ok: false, error: 'Cart is empty' });
     }
     if (!phone || !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ ok: false, error: 'Valid phone number required' });
+    }
+    if (!address || !String(address).trim()) {
+      return res.status(400).json({ ok: false, error: 'Delivery address is required' });
     }
     const method = (paymentMethod === 'upi') ? 'upi' : 'cod';
 
@@ -256,6 +259,7 @@ app.post('/api/create-order', async (req, res) => {
       id: orderId,
       displayId,
       phone,
+      address: String(address).trim().slice(0, 300),
       items: lineItems,
       amount,
       paymentMethod: method, // 'cod' | 'upi'
@@ -311,6 +315,7 @@ app.get('/api/my-orders', async (req, res) => {
       amount: o.amount,
       paymentMethod: o.paymentMethod,
       status: o.status,
+      address: o.address,
       createdAt: o.createdAt,
     }));
     res.json({ ok: true, orders: mine });

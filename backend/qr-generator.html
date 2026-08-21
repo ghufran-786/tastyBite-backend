@@ -104,6 +104,7 @@ async function generatePoster(){
 
   let logoImg = null;
   try { logoImg = await loadImage(LOGO_SRC); } catch(e) { console.warn('Logo not found next to qr-generator.html, skipping.'); }
+  try { await document.fonts.load("700 90px 'Fredoka'"); await document.fonts.ready; } catch(e){}
 
   const canvas = document.getElementById('posterCanvas');
   const ctx = canvas.getContext('2d');
@@ -177,16 +178,20 @@ async function generatePoster(){
   ctx.fillText('🛵', 55, H - 40);
 
   // ---- Right side: logo + name + tagline ----
-  const rightX = 760;
-  let logoCX = rightX + 130, logoCY = 210, logoR = 100;
+  const rightX = 640;
+  let logoCX = rightX + 120, logoCY = 210, logoR = 100;
   if(logoImg){
     ctx.save();
+    // subtle plate/backdrop behind the logo circle
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(logoCX, logoCY, logoR+8, 0, Math.PI*2); ctx.fill();
     ctx.beginPath();
     ctx.arc(logoCX, logoCY, logoR, 0, Math.PI*2);
     ctx.closePath();
     ctx.clip();
-    // cover-fit the logo into the circle
-    const scale = Math.max((logoR*2)/logoImg.width, (logoR*2)/logoImg.height);
+    // contain-fit (like the website's logo-bowl: object-fit:contain) so the
+    // full logo shows without cropping its edges/text
+    const scale = Math.min((logoR*2)/logoImg.width, (logoR*2)/logoImg.height);
     const lw = logoImg.width*scale, lh = logoImg.height*scale;
     ctx.drawImage(logoImg, logoCX-lw/2, logoCY-lh/2, lw, lh);
     ctx.restore();
@@ -195,7 +200,7 @@ async function generatePoster(){
     ctx.beginPath(); ctx.arc(logoCX, logoCY, logoR, 0, Math.PI*2); ctx.stroke();
   }
 
-  const textX = rightX + 260;
+  const textX = rightX + 240;
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#2F5A1D';
   ctx.font = "700 90px 'Fredoka', sans-serif";
@@ -206,17 +211,25 @@ async function generatePoster(){
     ctx.fillText(tagline.toUpperCase(), textX + 4, 285);
   }
 
-  // Order Now / Home Delivery pills
+  // Order Now / Home Delivery pills — solid, high-contrast icon circles
   function iconRow(y, emoji, label){
-    ctx.fillStyle = 'rgba(242,169,59,0.15)';
-    ctx.beginPath(); ctx.arc(textX + 40, y, 40, 0, Math.PI*2); ctx.fill();
-    ctx.font = '42px sans-serif';
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.18)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#F2A93B';
+    ctx.beginPath(); ctx.arc(textX + 44, y, 44, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = '#2F5A1D';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(textX + 44, y, 44, 0, Math.PI*2); ctx.stroke();
+    ctx.font = '48px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(emoji, textX + 40, y + 2);
+    ctx.fillText(emoji, textX + 44, y + 3);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#2F5A1D';
     ctx.font = "700 32px 'Fredoka', sans-serif";
-    ctx.fillText(label, textX + 100, y + 12);
+    ctx.fillText(label, textX + 108, y + 12);
   }
   iconRow(400, '🛍️', 'Order Now');
   iconRow(490, '🏠', 'Home Delivery');

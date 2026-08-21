@@ -90,11 +90,11 @@ app.post('/api/verify-otp', async (req, res) => {
    qr-restaurant-page.html when you edit items.
    --------------------------------------------------------- */
 const MENU = {
-  s1: { name: 'Paneer Tikka', price: 220 },
+  s1: { name: 'Chicken Malai Tikka', price: 220 },
   s2: { name: 'Chicken 65', price: 260 },
   m1: { name: 'Butter Chicken', price: 340 },
-  m2: { name: 'Dal Makhani', price: 210 },
-  m3: { name: 'Veg Biryani', price: 230 },
+  m2: { name: 'Mutton Curry', price: 320 },
+  m3: { name: 'Chicken Biryani', price: 250 },
   d1: { name: 'Masala Chaas', price: 70 },
   d2: { name: 'Fresh Lime Soda', price: 80 },
 };
@@ -176,6 +176,93 @@ app.post('/api/create-order', (req, res) => {
     console.error('create-order error:', err.message);
     res.status(500).json({ ok: false, error: 'Could not create order' });
   }
+});
+
+// POST /api/orders/:id/utr   { phone, utr }
+// Lets the customer (optionally) attach their UPI transaction
+// reference number (UTR/Ref No, shown in their UPI app after paying)
+// to their order. This does NOT mark the order as paid — it's just a
+// note that helps the owner cross-check their bank statement faster
+// when confirming payment. Only the order's own phone number can add it.
+app.post('/api/orders/:id/utr', (req, res) => {
+  try {
+    const { phone, utr } = req.body;
+    if (!utr || !String(utr).trim()) {
+      return res.status(400).json({ ok: false, error: 'UTR/reference number is required' });
+    }
+    const orders = loadOrders();
+    const order = orders.find(o => o.id === req.params.id);
+    if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
+    if (order.phone !== phone) return res.status(403).json({ ok: false, error: 'Not your order' });
+    order.utr = String(utr).trim().slice(0, 40);
+    saveOrders(orders);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('add-utr error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not save reference number' });
+  }
+});
+
+// GET /api/my-orders?phone=9876543210
+// Lets a customer see their own past orders (order history) on this
+// device — no PIN needed, but only returns orders matching that exact
+// phone number, and only non-sensitive fields.
+app.get('/api/my-orders', (req, res) => {
+  try {
+    const phone = req.query.phone;
+    if (!phone || !/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ ok: false, error: 'Valid phone number required' });
+    }
+    const orders = loadOrders();
+    const mine = orders
+      .filter(o => o.phone === phone)
+      .map(o => ({
+        displayId: o.displayId,
+        items: o.items,
+        amount: o.amount,
+        paymentMethod: o.paymentMethod,
+        status: o.status,
+        createdAt: o.createdAt,
+      }));
+    res.json({ ok: true, orders: mine });
+  } catch (err) {
+    console.error('my-orders error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not load order history' });
+  }
+});
+
+// GET /api/order-status/:id   (public — no PIN. Customer's phone polls
+// this after placing a UPI order, to know the moment the OWNER confirms
+// payment on the dashboard. Only returns minimal status info, not the
+// full order, to keep this endpoint safe to leave open.)
+app.get('/api/order-status/:id', (req, res) => {
+  const orders = loadOrders();
+  const order = orders.find(o => o.id === req.params.id);
+  if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
+  res.json({ ok: true, status: order.status, displayId: order.displayId });
+});
+
+// GET /api/my-orders/:phone   (public — no PIN. Lets a customer see
+// their own past orders by phone number, e.g. for an "Order history"
+// screen. Only returns the last 20 orders for that number, and only
+// the fields needed to display history — not full internal details.)
+app.get('/api/my-orders/:phone', (req, res) => {
+  const phone = req.params.phone;
+  if (!/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ ok: false, error: 'Invalid phone number' });
+  }
+  const orders = loadOrders()
+    .filter(o => o.phone === phone)
+    .slice(0, 20)
+    .map(o => ({
+      displayId: o.displayId,
+      items: o.items,
+      amount: o.amount,
+      paymentMethod: o.paymentMethod,
+      status: o.status,
+      createdAt: o.createdAt,
+    }));
+  res.json({ ok: true, orders });
 });
 
 /* ---------------------------------------------------------

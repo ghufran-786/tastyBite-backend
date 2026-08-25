@@ -207,6 +207,46 @@ async function saveMenuItem(item) {
   saveMenuToFile(items);
 }
 
+// PUT /api/menu/:id (header: x-owner-pin)
+app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
+  try {
+    const existing = await getMenuById(req.params.id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
+
+    const { category, name, desc, price, image, emoji, nonveg } = req.body;
+    const cleanCategory = String(category || '').trim().slice(0, 40);
+    const cleanName = String(name || '').trim().slice(0, 80);
+    const cleanDesc = String(desc || '').trim().slice(0, 160);
+    const numericPrice = Number(price);
+    const cleanImage = String(image || '').trim();
+    if (!cleanCategory || !cleanName || !cleanDesc) {
+      return res.status(400).json({ ok: false, error: 'Category, name and description are required' });
+    }
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 100000) {
+      return res.status(400).json({ ok: false, error: 'Enter a valid price' });
+    }
+    if (cleanImage && (!cleanImage.startsWith('data:image/') || cleanImage.length > 300000)) {
+      return res.status(400).json({ ok: false, error: 'Image must be a valid image under 220 KB' });
+    }
+
+    const item = {
+      ...existing,
+      category: cleanCategory,
+      name: cleanName,
+      desc: cleanDesc,
+      price: Math.round(numericPrice),
+      image: cleanImage || existing.image || '',
+      emoji: String(emoji || existing.emoji || '🍽️').slice(0, 4),
+      nonveg: Boolean(nonveg),
+    };
+    await saveMenuItem(item);
+    res.json({ ok: true, item });
+  } catch (err) {
+    console.error('edit-menu-item error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not edit menu item' });
+  }
+});
+
 async function getAllOrders() {
   if (db) {
     const snap = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();

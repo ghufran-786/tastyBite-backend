@@ -37,6 +37,7 @@ Server runs on `http://localhost:4000`.
 | GET | `/api/my-orders?phone=...` | — | Returns order history for that phone number |
 | GET | `/api/menu` | — | Returns the current customer menu |
 | POST | `/api/menu` | `{ category, name, desc, price, image, nonveg }` + owner PIN | Adds an item to the customer menu |
+| PUT | `/api/menu/:id` | Edited menu fields + owner PIN | Updates an existing customer menu item |
 
 ## 4. Connect the frontend
 

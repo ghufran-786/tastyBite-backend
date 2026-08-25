@@ -124,8 +124,15 @@
   .menu-form .check{ flex-direction:row; align-items:center; padding-top:25px; }
   .menu-form button{ background:var(--gold); color:var(--dark); border:0; border-radius:9px; padding:11px 16px; font-weight:700; cursor:pointer; }
   #menuMessage{ font-size:12px; margin-top:10px; min-height:16px; }
-  .menu-preview{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
-  .menu-preview span{ background:var(--green-pale); color:var(--green-deep); border-radius:100px; padding:5px 10px; font-size:11.5px; }
+  .menu-preview{ display:none; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .menu-preview.visible{ display:flex; }
+  .menu-toggle-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:9px; padding:9px 14px; font-size:12px; font-weight:700; cursor:pointer; margin-bottom:8px; }
+  .menu-preview-item{ display:flex; align-items:center; gap:8px; width:100%; border-top:1px solid var(--line); padding:9px 0; font-size:12px; }
+  .menu-preview-item img{ width:42px; height:42px; border-radius:8px; object-fit:cover; background:var(--green-pale); }
+  .menu-preview-item .menu-preview-info{ flex:1; color:var(--dark-soft); }
+  .menu-preview-item strong{ color:var(--dark); display:block; }
+  .menu-edit-btn, .menu-cancel-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; }
+  .menu-cancel-btn{ display:none; margin-left:8px; }
   @media (max-width:600px){ .menu-form{ grid-template-columns:1fr; } .menu-form .wide{ grid-column:auto; } .menu-form .check{ padding-top:0; } }
 </style>
 </head>
@@ -175,15 +182,16 @@
   </div>
 
   <div class="menu-panel">
-    <h3>Add item to customer menu</h3>
+    <h3 id="menuFormTitle">Add item to customer menu</h3>
+    <button id="menuToggleButton" class="menu-toggle-btn" type="button" onclick="toggleMenuItems()">Edit items</button>
     <form class="menu-form" onsubmit="addMenuItem(event)">
       <label>Category<input id="menuCategory" required maxlength="40" placeholder="e.g. Starters"></label>
       <label>Item name<input id="menuName" required maxlength="80" placeholder="e.g. Chicken Seekh Kebab"></label>
       <label class="wide">Short description<textarea id="menuDesc" required maxlength="160" placeholder="A short description customers will see"></textarea></label>
       <label>Price (₹)<input id="menuPrice" required type="number" min="1" max="100000" step="1" placeholder="250"></label>
-      <label>Item image<input id="menuImage" required type="file" accept="image/*"></label>
+      <label>Item image<input id="menuImage" type="file" accept="image/*"></label>
       <label class="check"><input id="menuNonveg" type="checkbox"> Non-veg item</label>
-      <button type="submit">Add item</button>
+      <button id="menuSubmitButton" type="submit">Add item</button><button id="menuCancelButton" class="menu-cancel-btn" type="button" onclick="cancelMenuEdit()">Cancel</button>
     </form>
     <div id="menuMessage"></div>
     <div id="menuPreview" class="menu-preview"></div>
@@ -207,6 +215,8 @@ let BACKEND_URL = '';
 let PIN = '';
 let ALL_ORDERS = [];
 let currentFilter = 'all';
+let MENU_ITEMS = [];
+let editingMenuId = null;
 
 const DEMO_ORDERS = [
   { id:'demo1', displayId:'4821', phone:'9876543210', address:{house:'Flat 302, Green Residency', area:'Civil Lines', pincode:'208001', city:'Kanpur', mobile:'9876543210'}, items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
@@ -301,16 +311,68 @@ async function loadMenu(){
   try{
     const res = await fetch(`${BACKEND_URL}/api/menu`);
     const data = await res.json();
-    if(data.ok) renderMenuPreview(data.items);
+    if(data.ok){
+      MENU_ITEMS = data.items;
+      renderMenuPreview(MENU_ITEMS);
+    }
   }catch(err){
     document.getElementById('menuMessage').textContent = 'Could not load menu items.';
   }
 }
 
 function renderMenuPreview(items){
-  document.getElementById('menuPreview').innerHTML = items.map(item =>
-    `<span>${item.name} · ₹${item.price}</span>`
-  ).join('');
+  const preview = document.getElementById('menuPreview');
+  preview.innerHTML = '';
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'menu-preview-item';
+    row.innerHTML = `<img src="${item.image || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2242%22 height=%2242%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23EAF3E1%22/%3E%3C/svg%3E'}" alt="">
+      <div class="menu-preview-info"><strong>${item.name}</strong>${item.category} · ₹${item.price}</div>
+      <button class="menu-edit-btn" type="button" onclick="editMenuItem('${item.id}')">Edit</button>`;
+    preview.appendChild(row);
+  });
+}
+
+function toggleMenuItems(){
+  const preview = document.getElementById('menuPreview');
+  const button = document.getElementById('menuToggleButton');
+  const isVisible = preview.classList.toggle('visible');
+  button.textContent = isVisible ? 'Hide items' : 'Edit items';
+}
+
+function editMenuItem(id){
+  const item = MENU_ITEMS.find(menuItem => menuItem.id === id);
+  if(!item) return;
+  editingMenuId = id;
+  document.getElementById('menuCategory').value = item.category || '';
+  document.getElementById('menuName').value = item.name || '';
+  document.getElementById('menuDesc').value = item.desc || '';
+  document.getElementById('menuPrice').value = item.price || '';
+  document.getElementById('menuNonveg').checked = Boolean(item.nonveg);
+  document.getElementById('menuImage').value = '';
+  document.getElementById('menuFormTitle').textContent = 'Edit customer menu item';
+  document.getElementById('menuSubmitButton').textContent = 'Save changes';
+  document.getElementById('menuCancelButton').style.display = 'inline-block';
+  document.getElementById('menuFormTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelMenuEdit(){
+  editingMenuId = null;
+  document.querySelector('.menu-form').reset();
+  document.getElementById('menuFormTitle').textContent = 'Add item to customer menu';
+  document.getElementById('menuSubmitButton').textContent = 'Add item';
+  document.getElementById('menuCancelButton').style.display = 'none';
+  document.getElementById('menuMessage').textContent = '';
+}
+
+async function readApiResponse(response){
+  const text = await response.text();
+  let data;
+  try { data = text ? JSON.parse(text) : {}; } catch (err) {
+    throw new Error(`Backend needs redeploy for menu editing (HTTP ${response.status}).`);
+  }
+  if(!response.ok || !data.ok) throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
+  return data;
 }
 
 async function addMenuItem(event){
@@ -322,9 +384,11 @@ async function addMenuItem(event){
   }
   messageEl.textContent = 'Saving item...';
   try{
-    const image = await readAndCompressImage(document.getElementById('menuImage').files[0]);
-    const res = await fetch(`${BACKEND_URL}/api/menu`, {
-      method: 'POST',
+    const selectedFile = document.getElementById('menuImage').files[0];
+    if(!editingMenuId && !selectedFile) throw new Error('Please choose an item image.');
+    const image = await readAndCompressImage(selectedFile);
+    const res = await fetch(`${BACKEND_URL}/api/menu${editingMenuId ? `/${editingMenuId}` : ''}`, {
+      method: editingMenuId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json', 'x-owner-pin': PIN },
       body: JSON.stringify({
         category: document.getElementById('menuCategory').value,
@@ -335,10 +399,10 @@ async function addMenuItem(event){
         nonveg: document.getElementById('menuNonveg').checked,
       }),
     });
-    const data = await res.json();
-    if(!res.ok || !data.ok) throw new Error(data.error || 'Could not save item.');
-    event.target.reset();
-    messageEl.textContent = 'Item added. Customers will see it after refreshing the menu.';
+    const data = await readApiResponse(res);
+    const wasEditing = Boolean(editingMenuId);
+    cancelMenuEdit();
+    messageEl.textContent = wasEditing ? 'Item updated. Customers will see the changes after refreshing the menu.' : 'Item added. Customers will see it after refreshing the menu.';
     loadMenu();
   }catch(err){
     messageEl.textContent = err.message;

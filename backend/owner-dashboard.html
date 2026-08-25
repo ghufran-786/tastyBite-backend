@@ -114,6 +114,19 @@
     background:#FDF3E2; border:1px dashed var(--gold); color:var(--gold-dark);
     padding:12px 16px; border-radius:10px; font-size:12.5px; margin-bottom:16px;
   }
+  .menu-panel{ background:#fff; border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 2px 14px rgba(0,0,0,0.06); }
+  .menu-panel h3{ font-family:'Fredoka',sans-serif; margin:0 0 14px; font-size:17px; }
+  .menu-form{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .menu-form label{ display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:var(--dark-soft); font-weight:600; }
+  .menu-form input, .menu-form textarea{ width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:9px; font:inherit; font-size:13px; }
+  .menu-form textarea{ min-height:70px; resize:vertical; }
+  .menu-form .wide{ grid-column:1 / -1; }
+  .menu-form .check{ flex-direction:row; align-items:center; padding-top:25px; }
+  .menu-form button{ background:var(--gold); color:var(--dark); border:0; border-radius:9px; padding:11px 16px; font-weight:700; cursor:pointer; }
+  #menuMessage{ font-size:12px; margin-top:10px; min-height:16px; }
+  .menu-preview{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .menu-preview span{ background:var(--green-pale); color:var(--green-deep); border-radius:100px; padding:5px 10px; font-size:11.5px; }
+  @media (max-width:600px){ .menu-form{ grid-template-columns:1fr; } .menu-form .wide{ grid-column:auto; } .menu-form .check{ padding-top:0; } }
 </style>
 </head>
 <body>
@@ -133,7 +146,7 @@
 <div id="pinGate">
   <h2>Enter your PIN</h2>
   <p>This PIN is set in your backend's <code>.env</code> file (OWNER_PIN).</p>
-  <input type="text" id="backendUrlInput" placeholder="Backend URL, e.g. https://your-backend.com" style="margin-bottom:10px; text-align:left; letter-spacing:normal; font-size:13px;">
+  <input type="text" id="backendUrlInput" value="https://tastybite-backend-bil3.onrender.com" placeholder="Backend URL, e.g. https://your-backend.com" style="margin-bottom:10px; text-align:left; letter-spacing:normal; font-size:13px;">
   <input type="password" id="pinInput" placeholder="PIN" inputmode="numeric">
   <button onclick="tryLogin()">View Orders</button>
   <div id="pinError">Incorrect PIN or can't reach backend.</div>
@@ -159,6 +172,21 @@
       <div class="label">Pending</div>
       <div class="value" id="statPending">0</div>
     </div>
+  </div>
+
+  <div class="menu-panel">
+    <h3>Add item to customer menu</h3>
+    <form class="menu-form" onsubmit="addMenuItem(event)">
+      <label>Category<input id="menuCategory" required maxlength="40" placeholder="e.g. Starters"></label>
+      <label>Item name<input id="menuName" required maxlength="80" placeholder="e.g. Chicken Seekh Kebab"></label>
+      <label class="wide">Short description<textarea id="menuDesc" required maxlength="160" placeholder="A short description customers will see"></textarea></label>
+      <label>Price (₹)<input id="menuPrice" required type="number" min="1" max="100000" step="1" placeholder="250"></label>
+      <label>Item image<input id="menuImage" required type="file" accept="image/*"></label>
+      <label class="check"><input id="menuNonveg" type="checkbox"> Non-veg item</label>
+      <button type="submit">Add item</button>
+    </form>
+    <div id="menuMessage"></div>
+    <div id="menuPreview" class="menu-preview"></div>
   </div>
 
   <div class="orders-panel">
@@ -209,6 +237,7 @@ async function tryLogin(){
     ALL_ORDERS = data.orders;
     document.getElementById('demoBanner').style.display = 'none';
     showDashboard();
+    loadMenu();
     startAutoRefresh();
   } catch (err) {
     errorEl.style.display = 'block';
@@ -239,6 +268,81 @@ async function loadOrders(){
 
 function startAutoRefresh(){
   setInterval(loadOrders, 15000); // refresh every 15s
+}
+
+async function readAndCompressImage(file){
+  if(!file) return '';
+  if(file.size > 8 * 1024 * 1024) throw new Error('Please choose an image smaller than 8 MB.');
+  const source = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = reject;
+    element.src = source;
+  });
+  const maxSize = 700;
+  const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+  const compressed = canvas.toDataURL('image/jpeg', 0.78);
+  if(compressed.length > 300000) throw new Error('Image is still too large. Please choose a smaller image.');
+  return compressed;
+}
+
+async function loadMenu(){
+  if(!BACKEND_URL) return;
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/menu`);
+    const data = await res.json();
+    if(data.ok) renderMenuPreview(data.items);
+  }catch(err){
+    document.getElementById('menuMessage').textContent = 'Could not load menu items.';
+  }
+}
+
+function renderMenuPreview(items){
+  document.getElementById('menuPreview').innerHTML = items.map(item =>
+    `<span>${item.name} · ₹${item.price}</span>`
+  ).join('');
+}
+
+async function addMenuItem(event){
+  event.preventDefault();
+  const messageEl = document.getElementById('menuMessage');
+  if(!BACKEND_URL){
+    messageEl.textContent = 'Enter your deployed backend URL and log in before adding an item.';
+    return;
+  }
+  messageEl.textContent = 'Saving item...';
+  try{
+    const image = await readAndCompressImage(document.getElementById('menuImage').files[0]);
+    const res = await fetch(`${BACKEND_URL}/api/menu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-owner-pin': PIN },
+      body: JSON.stringify({
+        category: document.getElementById('menuCategory').value,
+        name: document.getElementById('menuName').value,
+        desc: document.getElementById('menuDesc').value,
+        price: document.getElementById('menuPrice').value,
+        image,
+        nonveg: document.getElementById('menuNonveg').checked,
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'Could not save item.');
+    event.target.reset();
+    messageEl.textContent = 'Item added. Customers will see it after refreshing the menu.';
+    loadMenu();
+  }catch(err){
+    messageEl.textContent = err.message;
+  }
 }
 
 function setFilter(f){

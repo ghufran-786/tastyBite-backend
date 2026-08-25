@@ -8,7 +8,7 @@ const admin = require('firebase-admin');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '500kb' }));
 
 /* ---------------------------------------------------------
    TWILIO SETUP (OTP send + verify)
@@ -95,19 +95,15 @@ app.post('/api/verify-otp', async (req, res) => {
 
 /* ---------------------------------------------------------
    MENU (server-side)
-   ---------------------------------------------------------
-   Defined here so prices/names can never be tampered with from the
-   browser. Keep this in sync with the MENU object in
-   qr-restaurant-page.html when you edit items.
    --------------------------------------------------------- */
-const MENU = {
-  s1: { name: 'Chicken Malai Tikka', price: 220 },
-  s2: { name: 'Chicken 65', price: 260 },
-  m1: { name: 'Butter Chicken', price: 340 },
-  m2: { name: 'Mutton Curry', price: 320 },
-  m3: { name: 'Chicken Biryani', price: 250 },
-  d1: { name: 'Masala Chaas', price: 70 },
-  d2: { name: 'Fresh Lime Soda', price: 80 },
+const DEFAULT_MENU = {
+  s1: { id: 's1', category: 'Starters', name: 'Chicken Malai Tikka', desc: 'Creamy marinated chicken, chargrilled', price: 220, emoji: '🍢', nonveg: true },
+  s2: { id: 's2', category: 'Starters', name: 'Chicken 65', desc: 'Spicy fried chicken, curry leaves', price: 260, emoji: '🍗', nonveg: true },
+  m1: { id: 'm1', category: 'Mains', name: 'Butter Chicken', desc: 'Tomato-butter gravy, served with rice', price: 340, emoji: '🍛', nonveg: true },
+  m2: { id: 'm2', category: 'Mains', name: 'Mutton Curry', desc: 'Slow-cooked mutton, home-style spices', price: 320, emoji: '🍲', nonveg: true },
+  m3: { id: 'm3', category: 'Mains', name: 'Chicken Biryani', desc: 'Basmati rice, saffron, raita', price: 250, emoji: '🍚', nonveg: true },
+  d1: { id: 'd1', category: 'Drinks', name: 'Masala Chaas', desc: 'Spiced buttermilk', price: 70, emoji: '🥤', nonveg: false },
+  d2: { id: 'd2', category: 'Drinks', name: 'Fresh Lime Soda', desc: 'Sweet or salted', price: 80, emoji: '🍋', nonveg: false },
 };
 
 /* ---------------------------------------------------------
@@ -146,6 +142,7 @@ initFirebase();
 
 // ---- File-based fallback (used only if Firebase isn't connected) ----
 const ORDERS_FILE = path.join(__dirname, 'orders.json');
+const MENU_FILE = path.join(__dirname, 'menu.json');
 function loadOrdersFromFile() {
   try {
     return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
@@ -156,11 +153,59 @@ function loadOrdersFromFile() {
 function saveOrdersToFile(orders) {
   fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
 }
+function loadMenuFromFile() {
+  try {
+    return JSON.parse(fs.readFileSync(MENU_FILE, 'utf8'));
+  } catch {
+    return Object.values(DEFAULT_MENU);
+  }
+}
+function saveMenuToFile(items) {
+  fs.writeFileSync(MENU_FILE, JSON.stringify(items, null, 2));
+}
 
 // ---- Storage abstraction: same functions work whether Firestore is
 // connected or not, so the rest of the code below never needs to
 // know or care which storage is actually being used. ----
 const ORDERS_COLLECTION = 'orders';
+const MENU_COLLECTION = 'menu';
+
+async function getMenuItems() {
+  if (db) {
+    const snap = await db.collection(MENU_COLLECTION).get();
+    const saved = Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
+    return Object.values(DEFAULT_MENU).map(item => saved[item.id] || item)
+      .concat(snap.docs.map(d => d.data()).filter(item => !DEFAULT_MENU[item.id]));
+  }
+  return loadMenuFromFile();
+}
+
+async function getMenuById(id) {
+  const items = await getMenuItems();
+  return items.find(item => item.id === id) || null;
+}
+
+// Public menu endpoint. It is read-only; prices still come from the server
+// when an order is created.
+app.get('/api/menu', async (req, res) => {
+  try {
+    const items = await getMenuItems();
+    res.json({ ok: true, items });
+  } catch (err) {
+    console.error('menu load error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not load menu' });
+  }
+});
+
+async function saveMenuItem(item) {
+  if (db) {
+    await db.collection(MENU_COLLECTION).doc(item.id).set(item);
+    return;
+  }
+  const items = loadMenuFromFile().filter(existing => existing.id !== item.id);
+  items.push(item);
+  saveMenuToFile(items);
+}
 
 async function getAllOrders() {
   if (db) {
@@ -250,13 +295,19 @@ app.post('/api/create-order', async (req, res) => {
 
     const method = (paymentMethod === 'upi') ? 'upi' : 'cod';
 
+    const menuItems = await getMenuItems();
+    const menuById = Object.fromEntries(menuItems.map(item => [item.id, item]));
     let amount = 0;
     const lineItems = [];
     for (const line of items) {
-      const item = MENU[line.id];
+      const item = menuById[line.id];
       if (!item) return res.status(400).json({ ok: false, error: `Unknown item: ${line.id}` });
-      amount += item.price * line.qty;
-      lineItems.push({ id: line.id, name: item.name, qty: line.qty, price: item.price });
+      const qty = Number(line.qty);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
+        return res.status(400).json({ ok: false, error: 'Invalid item quantity' });
+      }
+      amount += item.price * qty;
+      lineItems.push({ id: line.id, name: item.name, qty, price: item.price });
     }
 
     // 4-digit order number the customer sees and can quote to staff
@@ -354,6 +405,44 @@ function checkOwnerPin(req, res, next) {
   }
   next();
 }
+
+// POST /api/menu (header: x-owner-pin)
+app.post('/api/menu', checkOwnerPin, async (req, res) => {
+  try {
+    const { category, name, desc, price, image, emoji, nonveg } = req.body;
+    const cleanCategory = String(category || '').trim().slice(0, 40);
+    const cleanName = String(name || '').trim().slice(0, 80);
+    const cleanDesc = String(desc || '').trim().slice(0, 160);
+    const numericPrice = Number(price);
+    const cleanImage = String(image || '').trim();
+
+    if (!cleanCategory || !cleanName || !cleanDesc || !cleanImage) {
+      return res.status(400).json({ ok: false, error: 'Category, name, description and image are required' });
+    }
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 100000) {
+      return res.status(400).json({ ok: false, error: 'Enter a valid price' });
+    }
+    if (cleanImage && (!cleanImage.startsWith('data:image/') || cleanImage.length > 300000)) {
+      return res.status(400).json({ ok: false, error: 'Image must be a valid image under 220 KB' });
+    }
+
+    const item = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      category: cleanCategory,
+      name: cleanName,
+      desc: cleanDesc,
+      price: Math.round(numericPrice),
+      image: cleanImage,
+      emoji: String(emoji || '🍽️').slice(0, 4),
+      nonveg: Boolean(nonveg),
+    };
+    await saveMenuItem(item);
+    res.json({ ok: true, item });
+  } catch (err) {
+    console.error('add-menu-item error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not add menu item' });
+  }
+});
 
 // GET /api/orders   (header: x-owner-pin)
 app.get('/api/orders', checkOwnerPin, async (req, res) => {

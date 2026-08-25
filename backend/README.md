@@ -32,8 +32,11 @@ Server runs on `http://localhost:4000`.
 |---|---|---|---|
 | POST | `/api/send-otp` | `{ phone }` | Sends OTP via SMS |
 | POST | `/api/verify-otp` | `{ phone, code }` | Verifies OTP |
-| POST | `/api/create-order` | `{ items: [{id, qty}] }` | Creates a Razorpay order (server calculates price — never trust client amounts) |
-| POST | `/api/verify-payment` | `{ razorpay_order_id, razorpay_payment_id, razorpay_signature }` | Confirms payment wasn't tampered with |
+| POST | `/api/create-order` | `{ phone, items, paymentMethod, address }` | Saves a UPI or COD order; amount is calculated server-side |
+| POST | `/api/orders/:id/utr` | `{ phone, utr }` | Saves a customer's optional UPI reference number |
+| GET | `/api/my-orders?phone=...` | — | Returns order history for that phone number |
+| GET | `/api/menu` | — | Returns the current customer menu |
+| POST | `/api/menu` | `{ category, name, desc, price, image, nonveg }` + owner PIN | Adds an item to the customer menu |
 
 ## 4. Connect the frontend
 

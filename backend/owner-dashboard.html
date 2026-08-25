@@ -183,7 +183,6 @@
 
   <div class="menu-panel">
     <h3 id="menuFormTitle">Add item to customer menu</h3>
-    <button id="menuToggleButton" class="menu-toggle-btn" type="button" onclick="toggleMenuItems()">Edit items</button>
     <form class="menu-form" onsubmit="addMenuItem(event)">
       <label>Category<input id="menuCategory" required maxlength="40" placeholder="e.g. Starters"></label>
       <label>Item name<input id="menuName" required maxlength="80" placeholder="e.g. Chicken Seekh Kebab"></label>
@@ -193,6 +192,7 @@
       <label class="check"><input id="menuNonveg" type="checkbox"> Non-veg item</label>
       <button id="menuSubmitButton" type="submit">Add item</button><button id="menuCancelButton" class="menu-cancel-btn" type="button" onclick="cancelMenuEdit()">Cancel</button>
     </form>
+    <button id="menuToggleButton" class="menu-toggle-btn" type="button" onclick="toggleMenuItems()">Edit items</button>
     <div id="menuMessage"></div>
     <div id="menuPreview" class="menu-preview"></div>
   </div>

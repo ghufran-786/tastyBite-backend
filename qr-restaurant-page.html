@@ -1082,6 +1082,27 @@ function openCart(){
   // but only if the customer hasn't already typed a different one in.
   const mobileField = document.getElementById('addrMobile');
   if(!mobileField.value) mobileField.value = customerPhone;
+  loadSavedAddress();
+}
+
+async function loadSavedAddress(){
+  if(!BACKEND_URL || !customerPhone) return;
+
+  const fields = ['addrHouse','addrArea','addrPincode','addrCity'];
+  if(fields.some(id => document.getElementById(id).value.trim())) return;
+
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/my-orders?phone=${customerPhone}`);
+    const data = await res.json();
+    const latestAddress = data.ok && data.orders.length > 0 ? data.orders[0].address : null;
+    if(!latestAddress) return;
+
+    document.getElementById('addrHouse').value = latestAddress.house || '';
+    document.getElementById('addrArea').value = latestAddress.area || '';
+    document.getElementById('addrPincode').value = latestAddress.pincode || '';
+    document.getElementById('addrCity').value = latestAddress.city || '';
+    document.getElementById('addrMobile').value = latestAddress.mobile || customerPhone;
+  }catch(err){ /* keep the address form usable if history is unavailable */ }
 }
 
 async function openOrderHistory(){

@@ -77,7 +77,7 @@
   .brand-name{
     font-family:'Fredoka', sans-serif;
     font-weight:700;
-    font-size:34px;
+    font-size:44px;
     letter-spacing:0.3px;
     line-height:1.1;
   }
@@ -108,14 +108,24 @@
   }
   .social-icon{
     display:flex; align-items:center; justify-content:center;
-    width:36px; height:36px; border-radius:50%;
+    width:42px; height:42px; border-radius:50%;
     background:rgba(255,255,255,0.16);
     border:1px solid rgba(255,255,255,0.35);
     text-decoration:none;
     transition:background .15s ease, transform .12s ease;
   }
   .social-icon:active{ background:rgba(255,255,255,0.32); transform:scale(0.92); }
-  .social-icon svg{ width:18px; height:18px; fill:var(--white); }
+  .social-icon svg{ width:21px; height:21px; fill:var(--white); }
+
+  /* Keep the larger menu branding below the fixed action buttons. */
+  #screen-menu > .leaf-header{
+    padding-top:68px !important;
+    padding-bottom:30px !important;
+  }
+  #screen-menu .logo-bowl{
+    width:108px !important;
+    height:108px !important;
+  }
 
   .body-pad{ padding:26px 24px; flex:1; }
 
@@ -219,15 +229,20 @@
   }
   .menu-item{
     display:flex; align-items:center; gap:14px;
-    padding:12px 0; border-bottom:1px solid var(--line);
+    padding:12px 0 12px 10px; border-bottom:1px solid var(--line);
   }
   .plate{
-    width:94px; height:94px; border-radius:50%; flex-shrink:0;
+    width:112px; height:112px; border-radius:50%; flex-shrink:0;
     background: radial-gradient(circle at 35% 30%, #fff 0 38%, var(--green-pale) 39% 100%);
     border:1px solid var(--line);
     display:flex; align-items:center; justify-content:center;
     font-size:44px;
     box-shadow: inset 0 0 0 9px white, 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .plate img{ width:100%; height:100%; object-fit:cover; border-radius:50%; }
+  @media (max-width:380px){
+    .menu-item{ gap:10px; }
+    .plate{ width:96px; height:96px; }
   }
   .item-info{ flex:1; }
   .item-name-row{ display:flex; align-items:center; gap:6px; margin-bottom:2px; }
@@ -259,13 +274,13 @@
   }
 
   .fab-row{
-    position:fixed; top:14px; right:calc(50% - 220px + 14px);
+    position:fixed; top:10px; right:calc(50% - 220px + 14px);
     z-index:60; display:flex; align-items:center; gap:8px;
     max-width:calc(100% - 28px);
   }
   .fab-row.fab-hidden{ display:none; }
   @media (max-width:472px){
-    .fab-row{ right:14px; }
+    .fab-row{ right:10px; }
   }
 
   .cart-fab{
@@ -363,6 +378,7 @@
   .history-status.paid{ background:#E4F5E6; color:#20693B; }
   .history-status.pending{ background:#FDECD2; color:#A15E06; }
   .history-items{ font-size:13px; color:var(--dark-soft); margin-bottom:6px; line-height:1.5; }
+  .history-address{ font-size:11.5px; color:var(--dark-soft); margin-bottom:8px; }
   .history-bottom{ display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--dark-soft); }
   .history-amount{ font-weight:700; color:var(--dark); font-size:14px; }
   .history-empty{ text-align:center; color:var(--dark-soft); padding:60px 20px; font-size:13.5px; }
@@ -381,6 +397,26 @@
   }
   .pay-footer{ padding:16px 24px 28px; margin-top:auto; }
   .pay-method-label{ font-size:12.5px; font-weight:600; color:var(--dark-soft); text-align:center; margin-bottom:10px; }
+
+  .address-box{
+    margin:4px 24px 16px; padding:16px; background:var(--green-pale);
+    border-radius:16px; border:1px solid var(--line);
+  }
+  .address-section-label{ font-size:13.5px; font-weight:700; color:var(--green-deep); margin-bottom:12px; }
+  .field-row{ margin-bottom:12px; }
+  .field-row:last-child{ margin-bottom:0; }
+  .field-row-split{ display:flex; gap:10px; }
+  .field-row-split .field-row{ flex:1; margin-bottom:12px; }
+  .field-label{ display:block; font-size:11.5px; font-weight:600; color:var(--dark-soft); margin-bottom:5px; }
+  .field-label .req{ color:var(--red-off); }
+  .address-field{
+    width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--line);
+    border-radius:10px; font-size:13.5px; font-family:'Poppins',sans-serif; background:#fff;
+  }
+  .address-field:focus{ outline:none; border-color:var(--green-deep); }
+  .address-field.error{ border-color:var(--red-off); }
+  .field-error{ display:none; color:var(--red-off); font-size:11px; margin-top:4px; }
+  .field-error.show{ display:block; }
   .secure-note{
     text-align:center; font-size:11.5px; color:var(--dark-soft); margin-top:10px;
   }
@@ -502,6 +538,42 @@
       <h2 class="step-title" style="margin:0;">Your order</h2>
     </div>
     <div class="receipt" id="receiptBox"></div>
+
+    <div class="address-box">
+      <div class="address-section-label">📍 Delivery address</div>
+
+      <div class="field-row">
+        <label class="field-label" for="addrHouse">House / Flat No. <span class="req">*</span></label>
+        <input type="text" id="addrHouse" class="address-field" placeholder="e.g. House No. 24, Flat 3B">
+        <div class="field-error" id="addrHouseError">Required</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="addrArea">Area / Street / Colony <span class="req">*</span></label>
+        <input type="text" id="addrArea" class="address-field" placeholder="e.g. Model Town, near Water Tank">
+        <div class="field-error" id="addrAreaError">Required</div>
+      </div>
+
+      <div class="field-row-split">
+        <div class="field-row">
+          <label class="field-label" for="addrPincode">Pincode <span class="req">*</span></label>
+          <input type="text" id="addrPincode" class="address-field" inputmode="numeric" maxlength="6" placeholder="e.g. 208001">
+          <div class="field-error" id="addrPincodeError">Enter a valid 6-digit pincode</div>
+        </div>
+        <div class="field-row">
+          <label class="field-label" for="addrCity">City <span class="req">*</span></label>
+          <input type="text" id="addrCity" class="address-field" placeholder="e.g. Kanpur">
+          <div class="field-error" id="addrCityError">Required</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="addrMobile">Contact number for delivery <span class="req">*</span></label>
+        <input type="tel" id="addrMobile" class="address-field" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number">
+        <div class="field-error" id="addrMobileError">Enter a valid 10-digit number</div>
+      </div>
+    </div>
+
     <div class="pay-footer">
       <div class="pay-method-label">Choose payment method</div>
       <button class="btn btn-outline-green" onclick="placeOrder('cod')">💵 Cash on Delivery</button>
@@ -566,7 +638,7 @@ const RESTAURANT = { name: "TastyBites", initials: "TB" };
    100% non-veg kitchen, every dish here is now non-veg (the earlier veg
    placeholders like Paneer Tikka / Dal Makhani / Veg Biryani were swapped
    out). Edit names, descriptions and prices to match your real menu. */
-const MENU = {
+let MENU = {
   "Starters": [
     { id:'s1', name:'Chicken Malai Tikka', desc:'Creamy marinated chicken, chargrilled', price:220, emoji:'🍢', nonveg:true },
     { id:'s2', name:'Chicken 65', desc:'Spicy fried chicken, curry leaves', price:260, emoji:'🍗', nonveg:true },
@@ -654,6 +726,7 @@ async function verifyOtp(){
     return;
   }
 
+  await loadRemoteMenu();
   buildMenu();
   showFabs();
   showScreen('screen-menu');
@@ -665,6 +738,23 @@ function showFabs(){
 
 function hideFabs(){
   document.getElementById('fabRow').classList.add('fab-hidden');
+}
+
+async function loadRemoteMenu(){
+  if(!BACKEND_URL) return;
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/menu`);
+    const data = await res.json();
+    if(!res.ok || !data.ok || !Array.isArray(data.items) || data.items.length === 0) return;
+    MENU = {};
+    data.items.forEach(item => {
+      const category = item.category || 'Menu';
+      if(!MENU[category]) MENU[category] = [];
+      MENU[category].push(item);
+    });
+  }catch(err){
+    // Keep the built-in menu available if the menu request is unavailable.
+  }
 }
 
 function buildMenu(){
@@ -693,7 +783,7 @@ function buildMenu(){
       const row = document.createElement('div');
       row.className = 'menu-item';
       row.innerHTML = `
-        <div class="plate">${item.emoji}</div>
+        <div class="plate">${item.image ? `<img src="${item.image}" alt="${item.name}">` : item.emoji || '🍽️'}</div>
         <div class="item-info">
           <div class="item-name-row">${item.nonveg ? '<span class="nonveg-mark" aria-label="Non-veg"></span>' : ''}<span class="item-name">${item.name}</span></div>
           <div class="item-desc">${item.desc}</div>
@@ -772,10 +862,73 @@ function getCartTotal(){
   return total;
 }
 
+// Validates all 5 delivery-address fields. Returns a structured address
+// object if everything's valid, or null (after highlighting the first
+// problem field and scrolling to it) if something's missing/invalid.
+function validateAddressFields(){
+  const fields = [
+    { id:'addrHouse', errId:'addrHouseError', check: v => v.length > 0 },
+    { id:'addrArea', errId:'addrAreaError', check: v => v.length > 0 },
+    { id:'addrPincode', errId:'addrPincodeError', check: v => /^\d{6}$/.test(v) },
+    { id:'addrCity', errId:'addrCityError', check: v => v.length > 0 },
+    { id:'addrMobile', errId:'addrMobileError', check: v => /^\d{10}$/.test(v) },
+  ];
+
+  let firstBadEl = null;
+  const values = {};
+
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    const errEl = document.getElementById(f.errId);
+    const val = el.value.trim();
+    values[f.id] = val;
+    const isValid = f.check(val);
+    el.classList.toggle('error', !isValid);
+    errEl.classList.toggle('show', !isValid);
+    if(!isValid && !firstBadEl) firstBadEl = el;
+  });
+
+  if(firstBadEl){
+    firstBadEl.focus();
+    firstBadEl.scrollIntoView({ behavior:'smooth', block:'center' });
+    return null;
+  }
+
+  return {
+    house: values.addrHouse,
+    area: values.addrArea,
+    pincode: values.addrPincode,
+    city: values.addrCity,
+    mobile: values.addrMobile,
+  };
+}
+
+function clearAddressFields(){
+  ['addrHouse','addrArea','addrPincode','addrCity'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  // Contact number stays pre-filled with the verified login number for
+  // next time, rather than clearing it — matches openCart()'s default.
+  document.getElementById('addrMobile').value = customerPhone;
+  ['addrHouseError','addrAreaError','addrPincodeError','addrCityError','addrMobileError'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+  });
+  ['addrHouse','addrArea','addrPincode','addrCity','addrMobile'].forEach(id => {
+    document.getElementById(id).classList.remove('error');
+  });
+}
+
 async function placeOrder(method){
   // method: 'cod' or 'upi'
   const amount = getCartTotal();
   if(amount === 0){ alert('Your cart is empty'); return; }
+
+  // Delivery address (5 required fields) must be filled before payment —
+  // no order goes through without complete details, since there's no
+  // way to deliver otherwise.
+  const address = validateAddressFields();
+  if(!address) return; // validateAddressFields already focused/highlighted the first bad field
+
   const itemsPayload = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
 
   if(method === 'upi'){
@@ -807,6 +960,7 @@ async function placeOrder(method){
     document.getElementById('upiWaitSub').textContent = "If your UPI app didn't open automatically, tap the button below.";
     cart = {};
     updateCartBar();
+    clearAddressFields();
     showScreen('screen-upi-wait');
 
     // Try an automatic open once, via a real click on the visible link
@@ -822,7 +976,7 @@ async function placeOrder(method){
       try{
         const res = await fetch(`${BACKEND_URL}/api/create-order`, {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method })
+          body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method, address })
         });
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || 'Could not create order');
@@ -844,7 +998,7 @@ async function placeOrder(method){
     try{
       const res = await fetch(`${BACKEND_URL}/api/create-order`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method })
+        body: JSON.stringify({ phone: customerPhone, items: itemsPayload, paymentMethod: method, address })
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Could not create order');
@@ -866,6 +1020,7 @@ async function placeOrder(method){
 
   cart = {};
   updateCartBar();
+  clearAddressFields();
 
   document.getElementById('successIcon').textContent = '✓';
   document.getElementById('successTitle').textContent = 'Order placed!';
@@ -923,6 +1078,10 @@ function openCart(){
   if(Object.keys(cart).length === 0){ alert('Your cart is empty — add some items from the menu first.'); return; }
   showScreen('screen-checkout');
   renderReceipt();
+  // Default the delivery contact number to the verified login number,
+  // but only if the customer hasn't already typed a different one in.
+  const mobileField = document.getElementById('addrMobile');
+  if(!mobileField.value) mobileField.value = customerPhone;
 }
 
 async function openOrderHistory(){
@@ -947,6 +1106,7 @@ async function openOrderHistory(){
           <span class="history-status ${o.status === 'paid' ? 'paid' : 'pending'}">${o.status === 'paid' ? '✓ Paid' : 'Pending'}</span>
         </div>
         <div class="history-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>
+        ${o.address && o.address.house ? `<div class="history-address">📍 ${o.address.house}, ${o.address.area}, ${o.address.city} - ${o.address.pincode}</div>` : ''}
         <div class="history-bottom">
           <span>${o.paymentMethod === 'upi' ? '📱 UPI' : '💵 COD'}</span>
           <span class="history-amount">₹${o.amount}</span>
@@ -984,6 +1144,21 @@ function endSession(){
   hideFabs();
   showScreen('screen-welcome');
 }
+
+// Clear each address field's error styling as soon as the customer starts
+// correcting it, so the red state doesn't linger after they've fixed it.
+[
+  ['addrHouse','addrHouseError'],
+  ['addrArea','addrAreaError'],
+  ['addrPincode','addrPincodeError'],
+  ['addrCity','addrCityError'],
+  ['addrMobile','addrMobileError'],
+].forEach(([fieldId, errId]) => {
+  document.getElementById(fieldId).addEventListener('input', function(){
+    this.classList.remove('error');
+    document.getElementById(errId).classList.remove('show');
+  });
+});
 </script>
 
 </body>

@@ -504,5 +504,10 @@ app.post('/api/orders/:id/mark-paid', checkOwnerPin, async (req, res) => {
   res.json({ ok: true, order: updated });
 });
 
+// Separate owner-only page URL. The dashboard still requires OWNER_PIN.
+app.get('/owner-dashboard.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'owner-dashboard.html'));
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -385,7 +385,7 @@
 
   /* ---------- Checkout ---------- */
   .back-row{ display:flex; align-items:center; gap:10px; padding:20px 24px 0; }
-  .back-btn{ background:none; border:none; font-size:20px; cursor:pointer; color:var(--dark); }
+  .back-btn{ background:none; border:none; font-size:24px; font-weight:700; line-height:1; cursor:pointer; color:var(--dark); }
   .receipt{
     margin:16px 24px; border:1.5px dashed var(--line); border-radius:14px; padding:18px;
     font-size:13.5px; background:var(--green-pale);
@@ -672,6 +672,35 @@ let cart = {}; // id -> qty
 let customerPhone = ''; // set once OTP is verified, used for order records
 let lastOrderId = null;
 let lastUpiUrl = null;
+const CUSTOMER_SESSION_KEY = 'swad_customer_session';
+const CUSTOMER_SESSION_DURATION = 15 * 60 * 1000;
+
+function saveCustomerSession(){
+  try{
+    localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify({
+      phone: customerPhone,
+      expiresAt: Date.now() + CUSTOMER_SESSION_DURATION,
+    }));
+  }catch(err){ }
+}
+
+async function restoreCustomerSession(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(CUSTOMER_SESSION_KEY) || 'null');
+    if(!saved || !/^\d{10}$/.test(saved.phone) || Date.now() >= saved.expiresAt){
+      localStorage.removeItem(CUSTOMER_SESSION_KEY);
+      return;
+    }
+    customerPhone = saved.phone;
+    document.getElementById('phoneInput').value = customerPhone;
+    await loadRemoteMenu();
+    buildMenu();
+    showFabs();
+    showScreen('screen-menu');
+  }catch(err){
+    localStorage.removeItem(CUSTOMER_SESSION_KEY);
+  }
+}
 
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -726,6 +755,7 @@ async function verifyOtp(){
     return;
   }
 
+  saveCustomerSession();
   await loadRemoteMenu();
   buildMenu();
   showFabs();
@@ -1159,6 +1189,7 @@ function endSession(){
   // "switch number" / "log out" option somewhere in the UI.
   cart = {};
   customerPhone = '';
+  localStorage.removeItem(CUSTOMER_SESSION_KEY);
   document.querySelectorAll('.otp-box').forEach(b=>b.value='');
   document.getElementById('phoneInput').value = '';
   updateCartBar();
@@ -1180,6 +1211,8 @@ function endSession(){
     document.getElementById(errId).classList.remove('show');
   });
 });
+
+restoreCustomerSession();
 </script>
 
 </body>

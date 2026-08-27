@@ -534,7 +534,7 @@
   <!-- SCREEN 4: CHECKOUT -->
   <div class="screen" id="screen-checkout">
     <div class="back-row">
-      <button class="back-btn" onclick="showScreen('screen-menu')">←</button>
+      <button class="back-btn" onclick="showScreen('screen-menu')">🠈</button>
       <h2 class="step-title" style="margin:0;">Your order</h2>
     </div>
     <div class="receipt" id="receiptBox"></div>
@@ -620,7 +620,7 @@
   <!-- SCREEN 6: ORDER HISTORY -->
   <div class="screen" id="screen-history">
     <div class="back-row">
-      <button class="back-btn" onclick="closeOrderHistory()">←</button>
+      <button class="back-btn" onclick="closeOrderHistory()">🠈</button>
       <h2 class="step-title" style="margin:0;">My Orders</h2>
     </div>
     <div id="historyList" class="history-list"></div>
@@ -675,6 +675,35 @@ let lastUpiUrl = null;
 const CUSTOMER_SESSION_KEY = 'swad_customer_session';
 const CUSTOMER_SESSION_DURATION = 15 * 60 * 1000;
 
+function getCartStorageKey(phone = customerPhone){
+  return `swad_cart_${phone}`;
+}
+
+function saveCart(){
+  if(!customerPhone) return;
+  try{
+    localStorage.setItem(getCartStorageKey(), JSON.stringify(cart));
+  }catch(err){ }
+}
+
+function loadSavedCart(){
+  cart = {};
+  if(!customerPhone) return;
+  try{
+    const saved = JSON.parse(localStorage.getItem(getCartStorageKey()) || '{}');
+    if(saved && typeof saved === 'object' && !Array.isArray(saved)){
+      Object.entries(saved).forEach(([id, qty]) => {
+        if(Number.isInteger(qty) && qty > 0 && qty <= 99) cart[id] = qty;
+      });
+    }
+  }catch(err){ }
+}
+
+function clearSavedCart(){
+  if(!customerPhone) return;
+  try{ localStorage.removeItem(getCartStorageKey()); }catch(err){ }
+}
+
 function saveCustomerSession(){
   try{
     localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify({
@@ -693,8 +722,10 @@ async function restoreCustomerSession(){
     }
     customerPhone = saved.phone;
     document.getElementById('phoneInput').value = customerPhone;
+    loadSavedCart();
     await loadRemoteMenu();
     buildMenu();
+    updateCartBar();
     showFabs();
     showScreen('screen-menu');
   }catch(err){
@@ -756,8 +787,10 @@ async function verifyOtp(){
   }
 
   saveCustomerSession();
+  loadSavedCart();
   await loadRemoteMenu();
   buildMenu();
+  updateCartBar();
   showFabs();
   showScreen('screen-menu');
 }
@@ -845,6 +878,7 @@ function renderItemControl(item){
 function changeQty(id, delta){
   cart[id] = (cart[id]||0) + delta;
   if(cart[id] <= 0) delete cart[id];
+  saveCart();
   const item = Object.values(MENU).flat().find(i=>i.id===id);
   renderItemControl(item);
   updateCartBar();
@@ -989,6 +1023,7 @@ async function placeOrder(method){
     document.getElementById('utrStatus').textContent = '';
     document.getElementById('upiWaitSub').textContent = "If your UPI app didn't open automatically, tap the button below.";
     cart = {};
+    clearSavedCart();
     updateCartBar();
     clearAddressFields();
     showScreen('screen-upi-wait');
@@ -1049,6 +1084,7 @@ async function placeOrder(method){
   }
 
   cart = {};
+  clearSavedCart();
   updateCartBar();
   clearAddressFields();
 
@@ -1175,6 +1211,7 @@ function closeOrderHistory(){
 
 function resetApp(){
   cart = {};
+  clearSavedCart();
   updateCartBar();
   // Customer is already verified for this session (customerPhone stays set),
   // so "Order again" goes straight back to the menu instead of asking for

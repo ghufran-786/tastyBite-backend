@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const twilio = require('twilio');
 const admin = require('firebase-admin');
 
 const app = express();
@@ -11,33 +10,40 @@ app.use(cors());
 app.use(express.json({ limit: '500kb' }));
 
 /* ---------------------------------------------------------
-   TWILIO SETUP (OTP send + verify)
+   2FACTOR.IN SETUP (OTP send + verify)
    ---------------------------------------------------------
-   If TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN aren't set correctly yet,
-   we skip creating the Twilio client instead of crashing the whole
-   server. The /api/send-otp and /api/verify-otp routes below will
-   just return a clear "not configured" error until you add real
-   Twilio credentials — everything else (orders, payments, dashboard)
-   keeps working fine in the meantime.
+   If TWOFACTOR_API_KEY isn't set yet, we don't crash the server.
+   The /api/send-otp and /api/verify-otp routes below fall back to
+   a DEMO mode until you add a real 2Factor API key — everything
+   else (orders, payments, dashboard) keeps working fine meanwhile.
 
-   DEMO FALLBACK: while Twilio isn't configured, the fixed code
+   DEMO FALLBACK: while 2Factor isn't configured, the fixed code
    "123456" is accepted for ANY phone number so you can keep testing
-   the full order flow without real SMS. The moment real Twilio
-   credentials are added, this fallback automatically stops being
-   used — only real SMS-verified codes work from then on.
-   --------------------------------------------------------- */
-const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
-const DEMO_OTP_CODE = '123456';
+   the full order flow without real SMS. The moment a real
+   TWOFACTOR_API_KEY is added, this fallback automatically stops
+   being used — only real SMS-verified codes work from then on.
 
-let twilioClient = null;
-const twilioConfigured = !!(TWILIO_SID && TWILIO_SID.startsWith('AC') && TWILIO_TOKEN && VERIFY_SERVICE_SID);
-if (twilioConfigured) {
-  twilioClient = twilio(TWILIO_SID, TWILIO_TOKEN);
-} else {
-  console.warn(`[Twilio] Not configured — using DEMO OTP mode. Any phone number + code "${DEMO_OTP_CODE}" will verify successfully. Add real Twilio credentials to enable real SMS.`);
+   How 2Factor's OTP flow works:
+   1. send-otp calls 2Factor's AUTOGEN endpoint, which generates the
+      OTP on their side and texts it to the customer. It returns a
+      "Details" field — this is a session ID we must save and send
+      back later to verify.
+   2. Because the session ID needs to survive between the send-otp
+      and verify-otp calls (two separate HTTP requests), we keep a
+      short-lived in-memory map of phone -> sessionId. Entries expire
+      after 10 minutes automatically.
+   --------------------------------------------------------- */
+const TWOFACTOR_API_KEY = process.env.TWOFACTOR_API_KEY;
+const DEMO_OTP_CODE = '123456';
+const twoFactorConfigured = !!TWOFACTOR_API_KEY;
+
+if (!twoFactorConfigured) {
+  console.warn(`[2Factor] Not configured — using DEMO OTP mode. Any phone number + code "${DEMO_OTP_CODE}" will verify successfully. Add TWOFACTOR_API_KEY to enable real SMS.`);
 }
+
+// phone -> { sessionId, expiresAt }
+const otpSessions = new Map();
+const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // POST /api/send-otp   { phone: "9876543210" }
 app.post('/api/send-otp', async (req, res) => {
@@ -46,15 +52,21 @@ app.post('/api/send-otp', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'Enter a valid 10-digit phone number' });
   }
 
-  if (!twilioConfigured) {
+  if (!twoFactorConfigured) {
     return res.json({ ok: true, message: 'OTP sent (demo mode — use code 123456)', demo: true });
   }
 
   try {
-    const e164 = `+91${phone}`;
-    await twilioClient.verify.v2
-      .services(VERIFY_SERVICE_SID)
-      .verifications.create({ to: e164, channel: 'sms' });
+    const url = `https://2factor.in/API/V1/${TWOFACTOR_API_KEY}/SMS/+91${phone}/AUTOGEN`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.Status !== 'Success') {
+      console.error('send-otp error:', data.Details);
+      return res.status(500).json({ ok: false, error: 'Could not send OTP' });
+    }
+
+    otpSessions.set(phone, { sessionId: data.Details, expiresAt: Date.now() + OTP_SESSION_TTL_MS });
     res.json({ ok: true, message: 'OTP sent' });
   } catch (err) {
     console.error('send-otp error:', err.message);
@@ -69,20 +81,26 @@ app.post('/api/verify-otp', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'Phone and code are required' });
   }
 
-  if (!twilioConfigured) {
+  if (!twoFactorConfigured) {
     if (code === DEMO_OTP_CODE) {
       return res.json({ ok: true, verified: true, demo: true });
     }
     return res.status(400).json({ ok: false, verified: false, error: `Incorrect code. (Demo mode is on — use ${DEMO_OTP_CODE})` });
   }
 
-  try {
-    const e164 = `+91${phone}`;
-    const check = await twilioClient.verify.v2
-      .services(VERIFY_SERVICE_SID)
-      .verificationChecks.create({ to: e164, code });
+  const session = otpSessions.get(phone);
+  if (!session || Date.now() > session.expiresAt) {
+    otpSessions.delete(phone);
+    return res.status(400).json({ ok: false, verified: false, error: 'OTP expired — please request a new one' });
+  }
 
-    if (check.status === 'approved') {
+  try {
+    const url = `https://2factor.in/API/V1/${TWOFACTOR_API_KEY}/SMS/VERIFY/${session.sessionId}/${code}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.Status === 'Success') {
+      otpSessions.delete(phone);
       res.json({ ok: true, verified: true });
     } else {
       res.status(400).json({ ok: false, verified: false, error: 'Incorrect or expired code' });

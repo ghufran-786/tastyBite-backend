@@ -35,6 +35,24 @@
   }
   header .sub{ font-size:12.5px; opacity:0.85; margin-top:2px; }
   .header-actions{ display:flex; gap:10px; align-items:center; }
+  .notification-bell{
+    position:relative; background:none; border:none; font-size:20px; cursor:pointer;
+    color:#fff; padding:8px; display:flex; align-items:center; justify-content:center;
+  }
+  .notification-badge{
+    position:absolute; top:-2px; right:-2px; background:#ff4444; color:#fff;
+    width:20px; height:20px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-size:11px; font-weight:700; border:2px solid var(--green-deep);
+  }
+  .notification-toast{
+    position:fixed; bottom:20px; right:20px; background:#fff; color:var(--dark);
+    padding:16px 20px; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.15);
+    max-width:320px; z-index:1000; border-left:4px solid var(--green);
+    animation:slideIn 0.3s ease-out;
+  }
+  @keyframes slideIn{ from{ transform:translateX(400px); opacity:0; } to{ transform:translateX(0); opacity:1; } }\n  @keyframes slideOut{ from{ transform:translateX(0); opacity:1; } to{ transform:translateX(400px); opacity:0; } }
+  .notification-toast .order-number{ font-weight:700; font-size:16px; color:var(--green-deep); }
+  .notification-toast .order-detail{ font-size:12px; color:var(--dark-soft); margin-top:4px; }
   .pill-btn{
     background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.4);
     color:#fff; padding:8px 16px; border-radius:100px; font-size:13px;
@@ -150,6 +168,10 @@
     <div class="sub" style="font-size: 30px; font-style: italic; text-decoration: underline;">Owner Dashboard</div></h1>
   </div>
   <div class="header-actions" id="headerActions" style="display:none;">
+    <button class="notification-bell" id="notificationBell" title="New orders">
+      🔔
+      <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
+    </button>
     <button class="pill-btn" onclick="loadOrders()">↻ Refresh</button>
     <button class="pill-btn" onclick="logout()">Log out</button>
   </div>
@@ -223,6 +245,9 @@ let ALL_ORDERS = [];
 let currentFilter = 'all';
 let MENU_ITEMS = [];
 let editingMenuId = null;
+let notificationCount = 0;
+let notificationEventSource = null;
+let lastPlayedOrderId = null;
 
 const DEMO_ORDERS = [
   { id:'demo1', displayId:'4821', phone:'9876543210', address:{house:'Flat 302, Green Residency', area:'Civil Lines', pincode:'208001', city:'Kanpur', mobile:'9876543210'}, items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
@@ -260,11 +285,141 @@ async function tryLogin(){
   }
 }
 
+// Connect to real-time order notifications (SSE)
+function connectToNotifications(){
+  if (!BACKEND_URL || notificationEventSource) return;
+  
+  try {
+    // Use fetch with streaming instead of EventSource to support custom headers
+    fetch(`${BACKEND_URL}/api/orders/notify`, {
+      method: 'GET',
+      headers: { 'x-owner-pin': PIN }
+    }).then(response => {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      const readStream = () => {
+        reader.read().then(({ done, value }) => {
+          if (done) return;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // Keep incomplete line in buffer
+          
+          lines.forEach(line => {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.substring(6));
+                if (data.event === 'new_order' && data.order) {
+                  const order = data.order;
+                  if (!ALL_ORDERS.some(o => o.id === order.id)) {
+                    showOrderNotification(order);
+                    loadOrders();
+                  }
+                }
+              } catch (e) { /* ignore parse errors */ }
+            }
+          });
+          readStream();
+        });
+      };
+      readStream();
+    }).catch(err => {
+      console.error('Notification connection failed:', err);
+      notificationEventSource = null;
+      setTimeout(connectToNotifications, 5000);
+    });
+    notificationEventSource = {}; // Mark as connected
+  } catch (err) {
+    console.error('Notification connection failed:', err);
+  }
+}
+
+// Show order notification toast + play sound + browser notification
+function showOrderNotification(order){
+  // Play notification sound
+  playNotificationSound();
+  
+  // Browser notification (if permission granted)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('New Order! 🍽️', {
+      body: `Order #${order.displayId} - ₹${order.amount} (${order.items.map(i => i.name).join(', ')})`,
+      icon: '🔔'
+    });
+  }
+  
+  // Toast notification
+  const toast = document.createElement('div');
+  toast.className = 'notification-toast';
+  toast.innerHTML = `
+    <div class="order-number">Order #${order.displayId} received! 🎉</div>
+    <div class="order-detail">Amount: ₹${order.amount}</div>
+    <div class="order-detail">Items: ${order.items.map(i => i.name).join(', ')}</div>
+  `;
+  document.body.appendChild(toast);
+  
+  // Update badge
+  notificationCount++;
+  updateNotificationBadge();
+  
+  // Auto-remove toast after 5 seconds
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease-out forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+// Play notification sound (simple beep using Web Audio API)
+function playNotificationSound(){
+  if (!window.AudioContext && !window.webkitAudioContext) return;
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (e) { /* audio not available */ }
+}
+
+// Update notification badge
+function updateNotificationBadge(){
+  const badge = document.getElementById('notificationBadge');
+  if (notificationCount > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = notificationCount > 99 ? '99+' : notificationCount;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Reset notification count when viewing orders
+function resetNotificationCount(){
+  notificationCount = 0;
+  updateNotificationBadge();
+}
+
 function showDashboard(){
   document.getElementById('pinGate').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('headerActions').style.display = 'flex';
   renderOrders();
+  connectToNotifications();
+  // Add notification bell click handler
+  document.getElementById('notificationBell').addEventListener('click', resetNotificationCount);
+  // Request browser notification permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 }
 
 function logout(){

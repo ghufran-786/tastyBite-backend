@@ -45,6 +45,49 @@ if (!twoFactorConfigured) {
 const otpSessions = new Map();
 const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+/* ---------------------------------------------------------
+   ORDER NOTIFICATIONS (SSE)
+   ---------------------------------------------------------
+   Tracks connected owner clients and sends real-time
+   notifications when new orders arrive.
+   --------------------------------------------------------- */
+const notificationClients = new Set();
+
+function notifyNewOrder(order) {
+  const message = `data: ${JSON.stringify({ event: 'new_order', order })}\n\n`;
+  notificationClients.forEach(res => {
+    res.write(message);
+  });
+}
+
+// GET /api/orders/notify (owner PIN header) — Server-Sent Events stream
+app.get('/api/orders/notify', (req, res) => {
+  const pin = req.header('x-owner-pin');
+  if (!process.env.OWNER_PIN || pin !== process.env.OWNER_PIN) {
+    return res.status(401).json({ ok: false, error: 'Invalid or missing PIN' });
+  }
+  
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  notificationClients.add(res);
+  
+  // Send initial connection confirmation
+  res.write('data: {"event":"connected"}\n\n');
+  
+  // Keep connection alive with heartbeat
+  const heartbeat = setInterval(() => {
+    res.write(':\n\n');
+  }, 30000);
+  
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    notificationClients.delete(res);
+  });
+});
+
 // POST /api/send-otp   { phone: "9876543210" }
 app.post('/api/send-otp', async (req, res) => {
   const { phone } = req.body;
@@ -319,6 +362,14 @@ async function displayIdExists(displayId) {
   return loadOrdersFromFile().some(o => o.displayId === displayId);
 }
 
+// Generate next sequential order number
+async function getNextDisplayId() {
+  const allOrders = await getAllOrders();
+  if (allOrders.length === 0) return '1001';
+  const maxId = Math.max(...allOrders.map(o => parseInt(o.displayId) || 0));
+  return String(maxId + 1);
+}
+
 // POST /api/create-order   { phone, items: [{id, qty}], paymentMethod: 'cod' | 'upi' }
 // No payment gateway involved — this just records the order.
 // Every order starts as "pending". Only the owner can mark it "paid",
@@ -368,14 +419,11 @@ app.post('/api/create-order', async (req, res) => {
       lineItems.push({ id: line.id, name: item.name, qty, price: item.price });
     }
 
-    // 4-digit order number the customer sees and can quote to staff
-    // (e.g. "order #4821"). Internal `id` (order_<timestamp>_<random>)
+    // Sequential order number the customer sees and can quote to staff
+    // (e.g. "order #1001"). Internal `id` (order_<timestamp>_<random>)
     // stays the real unique key used everywhere in the code; `displayId`
-    // is just the short human-friendly number.
-    let displayId;
-    do {
-      displayId = String(Math.floor(1000 + Math.random() * 9000)); // 1000-9999
-    } while (await displayIdExists(displayId));
+    // is just the short human-friendly sequential number.
+    const displayId = await getNextDisplayId();
 
     const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const order = {
@@ -390,6 +438,9 @@ app.post('/api/create-order', async (req, res) => {
       createdAt: new Date().toISOString(),
     };
     await insertOrder(order);
+    
+    // Notify all connected owner clients about the new order
+    notifyNewOrder(order);
 
     res.json({ ok: true, order: { id: orderId, displayId, amount } });
   } catch (err) {

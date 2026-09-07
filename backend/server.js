@@ -292,6 +292,13 @@ async function getMenuById(id) {
   const items = await getMenuItems();
   return items.find(item => item.id === id) || null;
 }
+async function getCanonicalCategory(category, excludeId = '') {
+  const cleaned = String(category || '').trim().replace(/\s+/g, ' ');
+  const items = await getMenuItems();
+  const existing = items.find(item => item.id !== excludeId &&
+    String(item.category || '').trim().replace(/\s+/g, ' ').toLowerCase() === cleaned.toLowerCase());
+  return existing ? String(existing.category).trim().replace(/\s+/g, ' ') : cleaned;
+}
 
 // Public menu endpoint. It is read-only; prices still come from the server
 // when an order is created.
@@ -322,7 +329,7 @@ app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
     if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
 
     const { category, name, desc, price, image, emoji, nonveg } = req.body;
-    const cleanCategory = String(category || '').trim().slice(0, 40);
+    const cleanCategory = (await getCanonicalCategory(category, req.params.id)).slice(0, 40);
     const cleanName = String(name || '').trim().slice(0, 80);
     const cleanDesc = String(desc || '').trim().slice(0, 160);
     const numericPrice = Number(price);
@@ -593,7 +600,7 @@ function checkOwnerPin(req, res, next) {
 app.post('/api/menu', checkOwnerPin, async (req, res) => {
   try {
     const { category, name, desc, price, image, emoji, nonveg } = req.body;
-    const cleanCategory = String(category || '').trim().slice(0, 40);
+    const cleanCategory = (await getCanonicalCategory(category)).slice(0, 40);
     const cleanName = String(name || '').trim().slice(0, 80);
     const cleanDesc = String(desc || '').trim().slice(0, 160);
     const numericPrice = Number(price);

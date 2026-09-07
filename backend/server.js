@@ -311,9 +311,14 @@ app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
 async function getAllOrders() {
   if (db) {
     const snap = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();
-    return snap.docs.map(d => d.data());
+    const orders = snap.docs.map(d => d.data());
+    await backfillDisplayIds(orders);
+    return orders;
   }
-  return loadOrdersFromFile();
+  const orders = loadOrdersFromFile();
+  const changed = backfillDisplayIdsInMemory(orders);
+  if (changed) saveOrdersToFile(orders);
+  return orders;
 }
 async function getOrderById(id) {
   if (db) {
@@ -360,6 +365,28 @@ async function displayIdExists(displayId) {
     return !snap.empty;
   }
   return loadOrdersFromFile().some(o => o.displayId === displayId);
+}
+
+function backfillDisplayIdsInMemory(orders) {
+  const missingOrders = orders
+    .filter(order => !order.displayId)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  if (missingOrders.length === 0) return false;
+
+  let nextId = Math.max(...orders.map(order => parseInt(order.displayId, 10) || 1000)) + 1;
+  for (const order of missingOrders) {
+    order.displayId = String(nextId++);
+  }
+  return true;
+}
+
+async function backfillDisplayIds(orders) {
+  if (!backfillDisplayIdsInMemory(orders)) return;
+  await Promise.all(
+    orders
+      .filter(order => order.displayId)
+      .map(order => db.collection(ORDERS_COLLECTION).doc(order.id).update({ displayId: order.displayId }))
+  );
 }
 
 // Generate next sequential order number

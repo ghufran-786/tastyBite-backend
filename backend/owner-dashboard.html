@@ -248,6 +248,8 @@ let editingMenuId = null;
 let notificationCount = 0;
 let notificationEventSource = null;
 let lastPlayedOrderId = null;
+const OWNER_SESSION_KEY = 'tastybites_owner_session';
+const OWNER_SESSION_DURATION = 2 * 60 * 60 * 1000;
 
 const DEMO_ORDERS = [
   { id:'demo1', displayId:'4821', phone:'9876543210', address:{house:'Flat 302, Green Residency', area:'Civil Lines', pincode:'208001', city:'Kanpur', mobile:'9876543210'}, items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
@@ -276,12 +278,32 @@ async function tryLogin(){
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
     ALL_ORDERS = data.orders;
+    localStorage.setItem(OWNER_SESSION_KEY, JSON.stringify({
+      backendUrl: BACKEND_URL,
+      pin: PIN,
+      expiresAt: Date.now() + OWNER_SESSION_DURATION
+    }));
     document.getElementById('demoBanner').style.display = 'none';
     showDashboard();
     loadMenu();
     startAutoRefresh();
   } catch (err) {
     errorEl.style.display = 'block';
+  }
+}
+
+async function restoreLoginSession(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(OWNER_SESSION_KEY) || 'null');
+    if(!saved || !saved.backendUrl || !saved.pin || saved.expiresAt <= Date.now()){
+      localStorage.removeItem(OWNER_SESSION_KEY);
+      return;
+    }
+    document.getElementById('backendUrlInput').value = saved.backendUrl;
+    document.getElementById('pinInput').value = saved.pin;
+    await tryLogin();
+  }catch(err){
+    localStorage.removeItem(OWNER_SESSION_KEY);
   }
 }
 
@@ -423,8 +445,11 @@ function showDashboard(){
 }
 
 function logout(){
+  localStorage.removeItem(OWNER_SESSION_KEY);
   location.reload();
 }
+
+window.addEventListener('DOMContentLoaded', restoreLoginSession);
 
 async function loadOrders(){
   if (!BACKEND_URL) { renderOrders(); return; }

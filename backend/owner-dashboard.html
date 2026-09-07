@@ -155,6 +155,15 @@
   .menu-preview-item strong{ color:var(--dark); display:block; }
   .menu-edit-btn, .menu-cancel-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; }
   .menu-cancel-btn{ display:none; margin-left:8px; }
+  .crop-modal{ display:none; position:fixed; inset:0; z-index:2000; background:rgba(20,30,12,0.65); align-items:center; justify-content:center; padding:20px; }
+  .crop-modal.visible{ display:flex; }
+  .crop-dialog{ width:min(420px,100%); background:#fff; border-radius:14px; padding:18px; box-shadow:0 12px 40px rgba(0,0,0,0.25); }
+  .crop-dialog h3{ margin:0 0 6px; font-family:'Fredoka',sans-serif; color:var(--green-deep); }
+  .crop-dialog p{ margin:0 0 12px; font-size:12px; color:var(--dark-soft); }
+  #cropCanvas{ display:block; width:100%; aspect-ratio:1; background:var(--green-pale); border-radius:10px; }
+  .crop-actions{ display:flex; gap:8px; margin-top:14px; }
+  .crop-actions button{ flex:1; }
+  .crop-cancel{ background:#fff !important; border:1px solid var(--green) !important; }
   @media (max-width:600px){ .menu-form{ grid-template-columns:1fr; } .menu-form .wide{ grid-column:auto; } .menu-form .check{ padding-top:0; } }
 </style>
 </head>
@@ -236,6 +245,19 @@
       </div>
     </div>
     <div id="ordersList"></div>
+  </div>
+</div>
+
+<div class="crop-modal" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+  <div class="crop-dialog">
+    <h3 id="cropTitle">Preview item image</h3>
+    <p>Choose full image to keep the complete photo, or crop square for a tighter product shot.</p>
+    <canvas id="cropCanvas" width="600" height="600"></canvas>
+    <div class="crop-actions">
+      <button type="button" class="crop-cancel" onclick="closeCropModal()">Cancel</button>
+      <button type="button" onclick="finishCrop(false)">Use full image</button>
+      <button type="button" onclick="finishCrop(true)">Crop square</button>
+    </div>
   </div>
 </div>
 
@@ -523,15 +545,61 @@ async function readAndCompressImage(file){
     element.onerror = reject;
     element.src = source;
   });
+  const useCrop = await chooseImageCrop(image);
   const maxSize = 700;
-  const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+  const cropSize = useCrop ? Math.min(image.width, image.height) : Math.max(image.width, image.height);
+  const scale = Math.min(1, maxSize / cropSize);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(image.width * scale));
-  canvas.height = Math.max(1, Math.round(image.height * scale));
-  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.max(1, Math.round((useCrop ? cropSize : image.width) * scale));
+  canvas.height = Math.max(1, Math.round((useCrop ? cropSize : image.height) * scale));
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  if(useCrop){
+    const left = (image.width - cropSize) / 2;
+    const top = (image.height - cropSize) / 2;
+    context.drawImage(image, left, top, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
+  }else{
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  }
   const compressed = canvas.toDataURL('image/jpeg', 0.78);
   if(compressed.length > 300000) throw new Error('Image is still too large. Please choose a smaller image.');
   return compressed;
+}
+
+let cropImage = null;
+function chooseImageCrop(image){
+  cropImage = image;
+  document.getElementById('cropModal').classList.add('visible');
+  drawCropPreview(false);
+  return new Promise(resolve => { window.resolveImageCrop = resolve; });
+}
+
+function drawCropPreview(square){
+  const canvas = document.getElementById('cropCanvas');
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#EAF3E1'; context.fillRect(0, 0, canvas.width, canvas.height);
+  const scale = square ? Math.max(canvas.width / cropImage.width, canvas.height / cropImage.height) : Math.min(canvas.width / cropImage.width, canvas.height / cropImage.height);
+  const width = cropImage.width * scale;
+  const height = cropImage.height * scale;
+  context.drawImage(cropImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+}
+
+function finishCrop(square){
+  drawCropPreview(square);
+  document.getElementById('cropModal').classList.remove('visible');
+  const resolve = window.resolveImageCrop;
+  window.resolveImageCrop = null;
+  cropImage = null;
+  if(resolve) resolve(square);
+}
+
+function closeCropModal(){
+  document.getElementById('cropModal').classList.remove('visible');
+  const resolve = window.resolveImageCrop;
+  window.resolveImageCrop = null;
+  cropImage = null;
+  if(resolve) resolve(false);
 }
 
 async function loadMenu(){

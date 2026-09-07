@@ -168,6 +168,7 @@
     <div class="sub" style="font-size: 30px; font-style: italic; text-decoration: underline;">Owner Dashboard</div></h1>
   </div>
   <div class="header-actions" id="headerActions" style="display:none;">
+    <button class="pill-btn" id="enablePushButton" onclick="enablePhoneAlerts()">Enable phone alerts</button>
     <button class="notification-bell" id="notificationBell" title="New orders">
       🔔
       <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
@@ -434,6 +435,7 @@ function showDashboard(){
   document.getElementById('pinGate').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('headerActions').style.display = 'flex';
+  updatePushButton();
   renderOrders();
   connectToNotifications();
   // Add notification bell click handler
@@ -441,6 +443,46 @@ function showDashboard(){
   // Request browser notification permission
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
+  }
+}
+
+async function updatePushButton(){
+  const button = document.getElementById('enablePushButton');
+  if(!button || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const registration = await navigator.serviceWorker.getRegistration('/');
+  if(registration && await registration.pushManager.getSubscription()){
+    button.textContent = 'Phone alerts enabled';
+    button.disabled = true;
+  }
+}
+
+function urlBase64ToUint8Array(value){
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+}
+
+async function enablePhoneAlerts(){
+  const button = document.getElementById('enablePushButton');
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push is not supported in this browser');
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted') throw new Error('Notification permission was not granted');
+    const registration = await navigator.serviceWorker.register('/owner-push-sw.js');
+    const keyResponse = await fetch(`${BACKEND_URL}/api/owner-push/public-key`, { headers: { 'x-owner-pin': PIN } });
+    const keyData = await keyResponse.json();
+    if(!keyResponse.ok || !keyData.ok) throw new Error(keyData.error || 'Push is not configured on the server');
+    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(keyData.publicKey) });
+    const saveResponse = await fetch(`${BACKEND_URL}/api/owner-push/subscribe`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-owner-pin': PIN }, body: JSON.stringify(subscription)
+    });
+    const saveData = await saveResponse.json();
+    if(!saveResponse.ok || !saveData.ok) throw new Error(saveData.error || 'Could not save phone alerts');
+    button.textContent = 'Phone alerts enabled';
+    button.disabled = true;
+    alert('Phone alerts enabled. You will hear/vibrate when a new order arrives.');
+  }catch(error){
+    alert(error.message);
   }
 }
 

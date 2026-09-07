@@ -4,10 +4,24 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
+const webpush = require('web-push');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '500kb' }));
+
+const PUSH_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const PUSH_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const PUSH_SUBSCRIPTIONS_FILE = path.join(__dirname, 'push-subscriptions.json');
+if (PUSH_PUBLIC_KEY && PUSH_PRIVATE_KEY) {
+  webpush.setVapidDetails('mailto:owner@tastybites.local', PUSH_PUBLIC_KEY, PUSH_PRIVATE_KEY);
+}
+function loadPushSubscriptions() {
+  try { return JSON.parse(fs.readFileSync(PUSH_SUBSCRIPTIONS_FILE, 'utf8')); } catch { return []; }
+}
+function savePushSubscriptions(subscriptions) {
+  fs.writeFileSync(PUSH_SUBSCRIPTIONS_FILE, JSON.stringify(subscriptions, null, 2));
+}
 
 /* ---------------------------------------------------------
    2FACTOR.IN SETUP (OTP send + verify)
@@ -58,6 +72,22 @@ function notifyNewOrder(order) {
   notificationClients.forEach(res => {
     res.write(message);
   });
+  if (!PUSH_PUBLIC_KEY || !PUSH_PRIVATE_KEY) return;
+  const payload = JSON.stringify({
+    title: 'New order received',
+    body: `Order #${order.displayId} - Rs ${order.amount}`,
+    orderId: order.displayId,
+  });
+  const subscriptions = loadPushSubscriptions();
+  Promise.all(subscriptions.map(async subscription => {
+    try {
+      await webpush.sendNotification(subscription, payload);
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        savePushSubscriptions(subscriptions.filter(item => item.endpoint !== subscription.endpoint));
+      }
+    }
+  })).catch(error => console.error('Push notification error:', error.message));
 }
 
 // GET /api/orders/notify (owner PIN header) — Server-Sent Events stream
@@ -86,6 +116,23 @@ app.get('/api/orders/notify', (req, res) => {
     clearInterval(heartbeat);
     notificationClients.delete(res);
   });
+});
+
+app.get('/api/owner-push/public-key', checkOwnerPin, (req, res) => {
+  if (!PUSH_PUBLIC_KEY) return res.status(503).json({ ok: false, error: 'Push notifications are not configured' });
+  res.json({ ok: true, publicKey: PUSH_PUBLIC_KEY });
+});
+
+app.post('/api/owner-push/subscribe', checkOwnerPin, (req, res) => {
+  if (!PUSH_PUBLIC_KEY || !PUSH_PRIVATE_KEY) return res.status(503).json({ ok: false, error: 'Push notifications are not configured' });
+  const subscription = req.body;
+  if (!subscription || !subscription.endpoint || !subscription.keys) {
+    return res.status(400).json({ ok: false, error: 'Invalid push subscription' });
+  }
+  const subscriptions = loadPushSubscriptions().filter(item => item.endpoint !== subscription.endpoint);
+  subscriptions.push(subscription);
+  savePushSubscriptions(subscriptions);
+  res.json({ ok: true });
 });
 
 // POST /api/send-otp   { phone: "9876543210" }
@@ -603,6 +650,9 @@ app.post('/api/orders/:id/mark-paid', checkOwnerPin, async (req, res) => {
 // Separate owner-only page URL. The dashboard still requires OWNER_PIN.
 app.get('/owner-dashboard.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'owner-dashboard.html'));
+});
+app.get('/owner-push-sw.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'owner-push-sw.js'));
 });
 
 const PORT = process.env.PORT || 4000;

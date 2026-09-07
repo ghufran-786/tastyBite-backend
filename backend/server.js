@@ -368,16 +368,16 @@ async function displayIdExists(displayId) {
 }
 
 function backfillDisplayIdsInMemory(orders) {
-  const missingOrders = orders
-    .filter(order => !order.displayId)
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  if (missingOrders.length === 0) return false;
-
-  let nextId = Math.max(...orders.map(order => parseInt(order.displayId, 10) || 1000)) + 1;
-  for (const order of missingOrders) {
-    order.displayId = String(nextId++);
-  }
-  return true;
+  const orderedOrders = [...orders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  let changed = false;
+  orderedOrders.forEach((order, index) => {
+    const displayId = String(1001 + index);
+    if (order.displayId !== displayId) {
+      order.displayId = displayId;
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 async function backfillDisplayIds(orders) {

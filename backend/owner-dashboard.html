@@ -155,15 +155,6 @@
   .menu-preview-item strong{ color:var(--dark); display:block; }
   .menu-edit-btn, .menu-cancel-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; }
   .menu-cancel-btn{ display:none; margin-left:8px; }
-  .crop-modal{ display:none; position:fixed; inset:0; z-index:2000; background:rgba(20,30,12,0.65); align-items:center; justify-content:center; padding:20px; }
-  .crop-modal.visible{ display:flex; }
-  .crop-dialog{ width:min(420px,100%); background:#fff; border-radius:14px; padding:18px; box-shadow:0 12px 40px rgba(0,0,0,0.25); }
-  .crop-dialog h3{ margin:0 0 6px; font-family:'Fredoka',sans-serif; color:var(--green-deep); }
-  .crop-dialog p{ margin:0 0 12px; font-size:12px; color:var(--dark-soft); }
-  #cropCanvas{ display:block; width:100%; aspect-ratio:1; background:var(--green-pale); border-radius:10px; }
-  .crop-actions{ display:flex; gap:8px; margin-top:14px; }
-  .crop-actions button{ flex:1; }
-  .crop-cancel{ background:#fff !important; border:1px solid var(--green) !important; }
   @media (max-width:600px){ .menu-form{ grid-template-columns:1fr; } .menu-form .wide{ grid-column:auto; } .menu-form .check{ padding-top:0; } }
 </style>
 </head>
@@ -177,7 +168,6 @@
     <div class="sub" style="font-size: 30px; font-style: italic; text-decoration: underline;">Owner Dashboard</div></h1>
   </div>
   <div class="header-actions" id="headerActions" style="display:none;">
-    <button class="pill-btn" id="enablePushButton" onclick="enablePhoneAlerts()">Enable phone alerts</button>
     <button class="notification-bell" id="notificationBell" title="New orders">
       🔔
       <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
@@ -248,19 +238,6 @@
   </div>
 </div>
 
-<div class="crop-modal" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
-  <div class="crop-dialog">
-    <h3 id="cropTitle">Preview item image</h3>
-    <p>Choose full image to keep the complete photo, or crop square for a tighter product shot.</p>
-    <canvas id="cropCanvas" width="600" height="600"></canvas>
-    <div class="crop-actions">
-      <button type="button" class="crop-cancel" onclick="closeCropModal()">Cancel</button>
-      <button type="button" onclick="finishCrop(false)">Use full image</button>
-      <button type="button" onclick="finishCrop(true)">Crop square</button>
-    </div>
-  </div>
-</div>
-
 <script>
 let BACKEND_URL = '';
 let PIN = '';
@@ -271,8 +248,6 @@ let editingMenuId = null;
 let notificationCount = 0;
 let notificationEventSource = null;
 let lastPlayedOrderId = null;
-const OWNER_SESSION_KEY = 'tastybites_owner_session';
-const OWNER_SESSION_DURATION = 2 * 60 * 60 * 1000;
 
 const DEMO_ORDERS = [
   { id:'demo1', displayId:'4821', phone:'9876543210', address:{house:'Flat 302, Green Residency', area:'Civil Lines', pincode:'208001', city:'Kanpur', mobile:'9876543210'}, items:[{name:'Butter Chicken',qty:1,price:340},{name:'Fresh Lime Soda',qty:2,price:80}], amount:500, paymentMethod:'upi', status:'paid', createdAt:new Date(Date.now()-25*60000).toISOString() },
@@ -301,32 +276,12 @@ async function tryLogin(){
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
     ALL_ORDERS = data.orders;
-    localStorage.setItem(OWNER_SESSION_KEY, JSON.stringify({
-      backendUrl: BACKEND_URL,
-      pin: PIN,
-      expiresAt: Date.now() + OWNER_SESSION_DURATION
-    }));
     document.getElementById('demoBanner').style.display = 'none';
     showDashboard();
     loadMenu();
     startAutoRefresh();
   } catch (err) {
     errorEl.style.display = 'block';
-  }
-}
-
-async function restoreLoginSession(){
-  try{
-    const saved = JSON.parse(localStorage.getItem(OWNER_SESSION_KEY) || 'null');
-    if(!saved || !saved.backendUrl || !saved.pin || saved.expiresAt <= Date.now()){
-      localStorage.removeItem(OWNER_SESSION_KEY);
-      return;
-    }
-    document.getElementById('backendUrlInput').value = saved.backendUrl;
-    document.getElementById('pinInput').value = saved.pin;
-    await tryLogin();
-  }catch(err){
-    localStorage.removeItem(OWNER_SESSION_KEY);
   }
 }
 
@@ -457,7 +412,6 @@ function showDashboard(){
   document.getElementById('pinGate').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('headerActions').style.display = 'flex';
-  updatePushButton();
   renderOrders();
   connectToNotifications();
   // Add notification bell click handler
@@ -468,52 +422,9 @@ function showDashboard(){
   }
 }
 
-async function updatePushButton(){
-  const button = document.getElementById('enablePushButton');
-  if(!button || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  const registration = await navigator.serviceWorker.getRegistration('/');
-  if(registration && await registration.pushManager.getSubscription()){
-    button.textContent = 'Phone alerts enabled';
-    button.disabled = true;
-  }
-}
-
-function urlBase64ToUint8Array(value){
-  const padding = '='.repeat((4 - value.length % 4) % 4);
-  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
-  return Uint8Array.from(atob(base64), character => character.charCodeAt(0));
-}
-
-async function enablePhoneAlerts(){
-  const button = document.getElementById('enablePushButton');
-  try{
-    if(!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push is not supported in this browser');
-    const permission = await Notification.requestPermission();
-    if(permission !== 'granted') throw new Error('Notification permission was not granted');
-    const registration = await navigator.serviceWorker.register('/owner-push-sw.js');
-    const keyResponse = await fetch(`${BACKEND_URL}/api/owner-push/public-key`, { headers: { 'x-owner-pin': PIN } });
-    const keyData = await keyResponse.json();
-    if(!keyResponse.ok || !keyData.ok) throw new Error(keyData.error || 'Push is not configured on the server');
-    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(keyData.publicKey) });
-    const saveResponse = await fetch(`${BACKEND_URL}/api/owner-push/subscribe`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-owner-pin': PIN }, body: JSON.stringify(subscription)
-    });
-    const saveData = await saveResponse.json();
-    if(!saveResponse.ok || !saveData.ok) throw new Error(saveData.error || 'Could not save phone alerts');
-    button.textContent = 'Phone alerts enabled';
-    button.disabled = true;
-    alert('Phone alerts enabled. You will hear/vibrate when a new order arrives.');
-  }catch(error){
-    alert(error.message);
-  }
-}
-
 function logout(){
-  localStorage.removeItem(OWNER_SESSION_KEY);
   location.reload();
 }
-
-window.addEventListener('DOMContentLoaded', restoreLoginSession);
 
 async function loadOrders(){
   if (!BACKEND_URL) { renderOrders(); return; }
@@ -545,61 +456,15 @@ async function readAndCompressImage(file){
     element.onerror = reject;
     element.src = source;
   });
-  const useCrop = await chooseImageCrop(image);
   const maxSize = 700;
-  const cropSize = useCrop ? Math.min(image.width, image.height) : Math.max(image.width, image.height);
-  const scale = Math.min(1, maxSize / cropSize);
+  const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round((useCrop ? cropSize : image.width) * scale));
-  canvas.height = Math.max(1, Math.round((useCrop ? cropSize : image.height) * scale));
-  const context = canvas.getContext('2d');
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  if(useCrop){
-    const left = (image.width - cropSize) / 2;
-    const top = (image.height - cropSize) / 2;
-    context.drawImage(image, left, top, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
-  }else{
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  }
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
   const compressed = canvas.toDataURL('image/jpeg', 0.78);
   if(compressed.length > 300000) throw new Error('Image is still too large. Please choose a smaller image.');
   return compressed;
-}
-
-let cropImage = null;
-function chooseImageCrop(image){
-  cropImage = image;
-  document.getElementById('cropModal').classList.add('visible');
-  drawCropPreview(false);
-  return new Promise(resolve => { window.resolveImageCrop = resolve; });
-}
-
-function drawCropPreview(square){
-  const canvas = document.getElementById('cropCanvas');
-  const context = canvas.getContext('2d');
-  context.fillStyle = '#EAF3E1'; context.fillRect(0, 0, canvas.width, canvas.height);
-  const scale = square ? Math.max(canvas.width / cropImage.width, canvas.height / cropImage.height) : Math.min(canvas.width / cropImage.width, canvas.height / cropImage.height);
-  const width = cropImage.width * scale;
-  const height = cropImage.height * scale;
-  context.drawImage(cropImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-}
-
-function finishCrop(square){
-  drawCropPreview(square);
-  document.getElementById('cropModal').classList.remove('visible');
-  const resolve = window.resolveImageCrop;
-  window.resolveImageCrop = null;
-  cropImage = null;
-  if(resolve) resolve(square);
-}
-
-function closeCropModal(){
-  document.getElementById('cropModal').classList.remove('visible');
-  const resolve = window.resolveImageCrop;
-  window.resolveImageCrop = null;
-  cropImage = null;
-  if(resolve) resolve(false);
 }
 
 async function loadMenu(){

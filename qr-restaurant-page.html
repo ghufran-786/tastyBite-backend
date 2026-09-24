@@ -6,18 +6,17 @@
 <title>TastyBites — Order</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Caveat:wght@600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-
 <style>
   :root{
-    --green-deep:#2F5A1D;
-    --green:#5B9A34;
-    --green-mid:#7CB955;
-    --green-pale:#EAF3E1;
+    --green-deep:#022109;
+    --green:#0E3A1A;  
+    --green-mid:#1F5C33;
+    --green-pale:#E3ECE4;
     --gold:#F2A93B;
     --gold-dark:#C97F17;
-    --dark:#1F3013;
-    --dark-soft:#4C5F41;
-    --line: rgba(31,48,19,0.12);
+    --dark:#0A1A0D;
+    --dark-soft:#3A4A3D;
+    --line: rgba(2,33,9,0.15);
     --white:#FFFFFF;
     --red-off:#C4432B;
   }
@@ -46,7 +45,7 @@
 
   /* ---------- Leafy green header (signature element) ---------- */
   .leaf-header{
-    background: radial-gradient(120% 90% at 15% -10%, #6EA83F 0%, var(--green-deep) 65%);
+    background: radial-gradient(120% 90% at 15% -10%, #1F5C33 0%, var(--green-deep) 65%);
     color:var(--white);
     padding:34px 26px 30px;
     position:relative;
@@ -74,7 +73,7 @@
     padding:6px;
     flex-shrink:0;
   }
-  .logo-bowl img{ width:100%; height:100%; object-fit:contain; }
+  .logo-bowl img{ width:180px; height:100%; object-fit:contain; }
   .brand-name{
     font-family:'Fredoka', sans-serif;
     font-weight:700;
@@ -117,7 +116,7 @@
     transition:background .15s ease, transform .12s ease;
   }
   .social-icon:active{ background:rgba(255,255,255,0.32); transform:scale(0.92); }
-  .social-icon svg{ width:21px; height:21px; fill:var(--white); }
+  .social-icon svg{ width:34px; height:28px; fill:var(--white); }
 
   /* Keep the larger menu branding below the fixed action buttons. */
   #screen-menu > .leaf-header{
@@ -232,7 +231,15 @@
   .menu-item{
     display:flex; align-items:center; gap:14px;
     padding:12px 0 12px 10px; border-bottom:1px solid var(--line);
-    transition:background .18s ease, transform .18s ease;
+    border-radius:12px; position:relative;
+    transition: transform 0.28s ease, background 0.28s ease, box-shadow 0.28s ease;
+  }
+  .menu-item:hover,
+  .menu-item.grown{
+    transform: scale(1.05);
+    background: var(--white);
+    box-shadow: 0 8px 20px rgba(2,33,9,0.14);
+    z-index: 2;
   }
   .plate{
     width:112px; height:112px; border-radius:50%; flex-shrink:0;
@@ -242,11 +249,24 @@
     font-size:44px;
     box-shadow: inset 0 0 0 9px white, 0 2px 6px rgba(0,0,0,0.06);
   }
-  .plate img{ width:100%; height:100%; object-fit:contain; border-radius:50%; padding:7px; transition:transform .2s ease; }
-  .menu-item:hover{ background:rgba(234,243,225,0.55); transform:translateY(-2px); }
-  .menu-item:hover .plate{ transform:scale(1.14); z-index:1; }
-  .menu-item:hover .qty-add{ transform:scale(1.14); box-shadow:0 5px 12px rgba(47,90,29,0.2); }
-  .qty-add{ transition:transform .2s ease, box-shadow .2s ease; }
+  .plate img{ width:100%; height:100%; object-fit:cover; border-radius:50%; }
+  .plate img{ cursor:zoom-in; }
+  .image-preview{
+    position:fixed; inset:0; z-index:1000; display:none;
+    align-items:center; justify-content:center; padding:24px;
+    background:rgba(0,0,0,.88);
+  }
+  .image-preview.open{ display:flex; }
+  .image-preview img{
+    max-width:100%; max-height:100%; width:auto; height:auto;
+    object-fit:contain; border-radius:12px;
+    box-shadow:0 10px 40px rgba(0,0,0,.35);
+  }
+  .image-preview-close{
+    position:absolute; top:16px; right:16px; width:42px; height:42px;
+    border:0; border-radius:50%; background:rgba(255,255,255,.94);
+    color:var(--dark); font-size:28px; line-height:1; cursor:pointer;
+  }
   @media (max-width:380px){
     .menu-item{ gap:10px; }
     .plate{ width:96px; height:96px; }
@@ -392,7 +412,7 @@
 
   /* ---------- Checkout ---------- */
   .back-row{ display:flex; align-items:center; gap:10px; padding:20px 24px 0; }
-  .back-btn{ background:none; border:none; font-size:24px; font-weight:900; line-height:1; cursor:pointer; color:var(--dark); }
+  .back-btn{ background:none; border:none; font-size:24px; font-weight:700; line-height:1; cursor:pointer; color:var(--dark); }
   .receipt{
     margin:16px 24px; border:1.5px dashed var(--line); border-radius:14px; padding:18px;
     font-size:13.5px; background:var(--green-pale);
@@ -446,7 +466,7 @@
 <div class="app">
 
   <!-- SCREEN 1: WELCOME + PHONE ENTRY -->
-  <div class="screen active" id="screen-welcome">
+  <div class="screen" id="screen-welcome">
     <div class="leaf-header">
       <div class="brush"></div>
       <span class="leaf l1">🍃</span><span class="leaf l2">🍃</span><span class="leaf l3">🍃</span>
@@ -501,7 +521,7 @@
   </div>
 
   <!-- SCREEN 3: MENU -->
-  <div class="screen" id="screen-menu">
+  <div class="screen active" id="screen-menu">
     <div class="leaf-header" style="padding:22px 24px 26px;">
       <div class="brush"></div>
       <span class="leaf l1">🍃</span><span class="leaf l2">🍃</span>
@@ -520,6 +540,11 @@
     <div class="verified-strip"><span class="tick">✓</span> Number verified — Table orders enabled</div>
     <div class="cat-tabs" id="catTabs"></div>
     <div class="menu-list" id="menuList"></div>
+  </div>
+
+  <div class="image-preview" id="imagePreview" role="dialog" aria-modal="true" aria-label="Menu item image preview">
+    <button class="image-preview-close" type="button" aria-label="Close image preview">&times;</button>
+    <img id="imagePreviewImg" alt="">
   </div>
 
   <!-- Cart + Orders: shown once the customer is logged in (OTP verified), same row, cart primary -->
@@ -541,7 +566,7 @@
   <!-- SCREEN 4: CHECKOUT -->
   <div class="screen" id="screen-checkout">
     <div class="back-row">
-      <button class="back-btn" type="button" aria-label="Back to menu" onclick="showScreen('screen-menu')">&#8592;</button>
+      <button class="back-btn" onclick="showScreen('screen-menu')">🠈</button>
       <h2 class="step-title" style="margin:0;">Your order</h2>
     </div>
     <div class="receipt" id="receiptBox"></div>
@@ -625,7 +650,7 @@
   <!-- SCREEN 6: ORDER HISTORY -->
   <div class="screen" id="screen-history">
     <div class="back-row">
-      <button class="back-btn" type="button" aria-label="Back to menu" onclick="showScreen('screen-menu')">&#8592;</button>
+      <button class="back-btn" onclick="closeOrderHistory()">🠈</button>
       <h2 class="step-title" style="margin:0;">My Orders</h2>
     </div>
     <div id="historyList" class="history-list"></div>
@@ -680,12 +705,23 @@ let lastUpiUrl = null;
 const CUSTOMER_SESSION_KEY = 'swad_customer_session';
 const CUSTOMER_SESSION_DURATION = 15 * 60 * 1000;
 
+function getOrCreateGuestId(){
+  // No OTP login anymore, so the cart needs an identity that isn't the
+  // phone number. This is a per-browser id generated once and reused,
+  // so the cart still survives page reloads before checkout.
+  let id = localStorage.getItem('swad_guest_id');
+  if(!id){
+    id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try{ localStorage.setItem('swad_guest_id', id); }catch(err){ }
+  }
+  return id;
+}
+
 function getCartStorageKey(phone = customerPhone){
-  return `swad_cart_${phone}`;
+  return `swad_cart_${phone || getOrCreateGuestId()}`;
 }
 
 function saveCart(){
-  if(!customerPhone) return;
   try{
     localStorage.setItem(getCartStorageKey(), JSON.stringify(cart));
   }catch(err){ }
@@ -693,7 +729,6 @@ function saveCart(){
 
 function loadSavedCart(){
   cart = {};
-  if(!customerPhone) return;
   try{
     const saved = JSON.parse(localStorage.getItem(getCartStorageKey()) || '{}');
     if(saved && typeof saved === 'object' && !Array.isArray(saved)){
@@ -705,7 +740,6 @@ function loadSavedCart(){
 }
 
 function clearSavedCart(){
-  if(!customerPhone) return;
   try{ localStorage.removeItem(getCartStorageKey()); }catch(err){ }
 }
 
@@ -718,24 +752,27 @@ function saveCustomerSession(){
   }catch(err){ }
 }
 
-async function restoreCustomerSession(){
+async function initApp(){
+  // No OTP/login step anymore: scanning the QR goes straight to the menu.
+  // If the customer already placed an order earlier in this browser,
+  // customerPhone will have been saved then — reuse it so their cart
+  // and mobile number stay consistent; otherwise start as a guest.
   try{
     const saved = JSON.parse(localStorage.getItem(CUSTOMER_SESSION_KEY) || 'null');
-    if(!saved || !/^\d{10}$/.test(saved.phone) || Date.now() >= saved.expiresAt){
+    if(saved && /^\d{10}$/.test(saved.phone) && Date.now() < saved.expiresAt){
+      customerPhone = saved.phone;
+    } else {
       localStorage.removeItem(CUSTOMER_SESSION_KEY);
-      return;
     }
-    customerPhone = saved.phone;
-    document.getElementById('phoneInput').value = customerPhone;
-    loadSavedCart();
-    await loadRemoteMenu();
-    buildMenu();
-    updateCartBar();
-    showFabs();
-    showScreen('screen-menu');
   }catch(err){
     localStorage.removeItem(CUSTOMER_SESSION_KEY);
   }
+  loadSavedCart();
+  await loadRemoteMenu();
+  buildMenu();
+  updateCartBar();
+  showFabs();
+  showScreen('screen-menu');
 }
 
 function showScreen(id){
@@ -816,9 +853,7 @@ async function loadRemoteMenu(){
     if(!res.ok || !data.ok || !Array.isArray(data.items) || data.items.length === 0) return;
     MENU = {};
     data.items.forEach(item => {
-      const rawCategory = String(item.category || 'Menu').trim().replace(/\s+/g, ' ');
-      const existingCategory = Object.keys(MENU).find(category => category.toLowerCase() === rawCategory.toLowerCase());
-      const category = existingCategory || rawCategory;
+      const category = item.category || 'Menu';
       if(!MENU[category]) MENU[category] = [];
       MENU[category].push(item);
     });
@@ -865,7 +900,42 @@ function buildMenu(){
       renderItemControl(item);
     });
   });
+  if(!listEl.dataset.growBound){
+    listEl.addEventListener('click', (e)=>{
+      if(e.target.closest('[id^="ctrl-"]')) return;
+      if(e.target.matches('.plate img')){
+        openImagePreview(e.target.src, e.target.alt);
+        e.stopPropagation();
+        return;
+      }
+      const row = e.target.closest('.menu-item');
+      if(!row) return;
+      row.classList.toggle('grown');
+    });
+    listEl.dataset.growBound = 'true';
+  }
 }
+
+function openImagePreview(src, alt){
+  const preview = document.getElementById('imagePreview');
+  const image = document.getElementById('imagePreviewImg');
+  image.src = src;
+  image.alt = alt || 'Menu item';
+  preview.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeImagePreview(){
+  document.getElementById('imagePreview').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('imagePreview').addEventListener('click', (e)=>{
+  if(e.target.id === 'imagePreview' || e.target.closest('.image-preview-close')) closeImagePreview();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && document.getElementById('imagePreview').classList.contains('open')) closeImagePreview();
+});
 
 function renderItemControl(item){
   const el = document.getElementById('ctrl-'+item.id);
@@ -999,6 +1069,12 @@ async function placeOrder(method){
   // way to deliver otherwise.
   const address = validateAddressFields();
   if(!address) return; // validateAddressFields already focused/highlighted the first bad field
+
+  // Phone is captured here, at checkout, instead of an OTP login step —
+  // this is what's saved for the order record and for re-filling the
+  // mobile field / loading order history next time.
+  customerPhone = address.mobile;
+  saveCustomerSession();
 
   const itemsPayload = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
 
@@ -1256,7 +1332,7 @@ function endSession(){
   });
 });
 
-restoreCustomerSession();
+initApp();
 </script>
 
 </body>

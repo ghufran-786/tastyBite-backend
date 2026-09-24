@@ -4,24 +4,10 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
-const webpush = require('web-push');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '500kb' }));
-
-const PUSH_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const PUSH_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const PUSH_SUBSCRIPTIONS_FILE = path.join(__dirname, 'push-subscriptions.json');
-if (PUSH_PUBLIC_KEY && PUSH_PRIVATE_KEY) {
-  webpush.setVapidDetails('mailto:owner@tastybites.local', PUSH_PUBLIC_KEY, PUSH_PRIVATE_KEY);
-}
-function loadPushSubscriptions() {
-  try { return JSON.parse(fs.readFileSync(PUSH_SUBSCRIPTIONS_FILE, 'utf8')); } catch { return []; }
-}
-function savePushSubscriptions(subscriptions) {
-  fs.writeFileSync(PUSH_SUBSCRIPTIONS_FILE, JSON.stringify(subscriptions, null, 2));
-}
 
 /* ---------------------------------------------------------
    2FACTOR.IN SETUP (OTP send + verify)
@@ -72,22 +58,6 @@ function notifyNewOrder(order) {
   notificationClients.forEach(res => {
     res.write(message);
   });
-  if (!PUSH_PUBLIC_KEY || !PUSH_PRIVATE_KEY) return;
-  const payload = JSON.stringify({
-    title: 'New order received',
-    body: `Order #${order.displayId} - Rs ${order.amount}`,
-    orderId: order.displayId,
-  });
-  const subscriptions = loadPushSubscriptions();
-  Promise.all(subscriptions.map(async subscription => {
-    try {
-      await webpush.sendNotification(subscription, payload);
-    } catch (error) {
-      if (error.statusCode === 404 || error.statusCode === 410) {
-        savePushSubscriptions(subscriptions.filter(item => item.endpoint !== subscription.endpoint));
-      }
-    }
-  })).catch(error => console.error('Push notification error:', error.message));
 }
 
 // GET /api/orders/notify (owner PIN header) — Server-Sent Events stream
@@ -116,23 +86,6 @@ app.get('/api/orders/notify', (req, res) => {
     clearInterval(heartbeat);
     notificationClients.delete(res);
   });
-});
-
-app.get('/api/owner-push/public-key', checkOwnerPin, (req, res) => {
-  if (!PUSH_PUBLIC_KEY) return res.status(503).json({ ok: false, error: 'Push notifications are not configured' });
-  res.json({ ok: true, publicKey: PUSH_PUBLIC_KEY });
-});
-
-app.post('/api/owner-push/subscribe', checkOwnerPin, (req, res) => {
-  if (!PUSH_PUBLIC_KEY || !PUSH_PRIVATE_KEY) return res.status(503).json({ ok: false, error: 'Push notifications are not configured' });
-  const subscription = req.body;
-  if (!subscription || !subscription.endpoint || !subscription.keys) {
-    return res.status(400).json({ ok: false, error: 'Invalid push subscription' });
-  }
-  const subscriptions = loadPushSubscriptions().filter(item => item.endpoint !== subscription.endpoint);
-  subscriptions.push(subscription);
-  savePushSubscriptions(subscriptions);
-  res.json({ ok: true });
 });
 
 // POST /api/send-otp   { phone: "9876543210" }
@@ -292,13 +245,6 @@ async function getMenuById(id) {
   const items = await getMenuItems();
   return items.find(item => item.id === id) || null;
 }
-async function getCanonicalCategory(category, excludeId = '') {
-  const cleaned = String(category || '').trim().replace(/\s+/g, ' ');
-  const items = await getMenuItems();
-  const existing = items.find(item => item.id !== excludeId &&
-    String(item.category || '').trim().replace(/\s+/g, ' ').toLowerCase() === cleaned.toLowerCase());
-  return existing ? String(existing.category).trim().replace(/\s+/g, ' ') : cleaned;
-}
 
 // Public menu endpoint. It is read-only; prices still come from the server
 // when an order is created.
@@ -329,7 +275,7 @@ app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
     if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
 
     const { category, name, desc, price, image, emoji, nonveg } = req.body;
-    const cleanCategory = (await getCanonicalCategory(category, req.params.id)).slice(0, 40);
+    const cleanCategory = String(category || '').trim().slice(0, 40);
     const cleanName = String(name || '').trim().slice(0, 80);
     const cleanDesc = String(desc || '').trim().slice(0, 160);
     const numericPrice = Number(price);
@@ -365,14 +311,9 @@ app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
 async function getAllOrders() {
   if (db) {
     const snap = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();
-    const orders = snap.docs.map(d => d.data());
-    await backfillDisplayIds(orders);
-    return orders;
+    return snap.docs.map(d => d.data());
   }
-  const orders = loadOrdersFromFile();
-  const changed = backfillDisplayIdsInMemory(orders);
-  if (changed) saveOrdersToFile(orders);
-  return orders;
+  return loadOrdersFromFile();
 }
 async function getOrderById(id) {
   if (db) {
@@ -419,28 +360,6 @@ async function displayIdExists(displayId) {
     return !snap.empty;
   }
   return loadOrdersFromFile().some(o => o.displayId === displayId);
-}
-
-function backfillDisplayIdsInMemory(orders) {
-  const orderedOrders = [...orders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  let changed = false;
-  orderedOrders.forEach((order, index) => {
-    const displayId = String(1001 + index);
-    if (order.displayId !== displayId) {
-      order.displayId = displayId;
-      changed = true;
-    }
-  });
-  return changed;
-}
-
-async function backfillDisplayIds(orders) {
-  if (!backfillDisplayIdsInMemory(orders)) return;
-  await Promise.all(
-    orders
-      .filter(order => order.displayId)
-      .map(order => db.collection(ORDERS_COLLECTION).doc(order.id).update({ displayId: order.displayId }))
-  );
 }
 
 // Generate next sequential order number
@@ -600,7 +519,7 @@ function checkOwnerPin(req, res, next) {
 app.post('/api/menu', checkOwnerPin, async (req, res) => {
   try {
     const { category, name, desc, price, image, emoji, nonveg } = req.body;
-    const cleanCategory = (await getCanonicalCategory(category)).slice(0, 40);
+    const cleanCategory = String(category || '').trim().slice(0, 40);
     const cleanName = String(name || '').trim().slice(0, 80);
     const cleanDesc = String(desc || '').trim().slice(0, 160);
     const numericPrice = Number(price);
@@ -657,9 +576,6 @@ app.post('/api/orders/:id/mark-paid', checkOwnerPin, async (req, res) => {
 // Separate owner-only page URL. The dashboard still requires OWNER_PIN.
 app.get('/owner-dashboard.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'owner-dashboard.html'));
-});
-app.get('/owner-push-sw.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'owner-push-sw.js'));
 });
 
 const PORT = process.env.PORT || 4000;

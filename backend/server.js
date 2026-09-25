@@ -578,5 +578,11 @@ app.get('/owner-dashboard.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'owner-dashboard.html'));
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK"
+  });
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -580,6 +580,12 @@
       <div class="address-section-label">📍 Delivery address</div>
 
       <div class="field-row">
+        <label class="field-label" for="addrName">Name <span class="req">*</span></label>
+        <input type="text" id="addrName" class="address-field" placeholder="e.g. Ramesh Kumar">
+        <div class="field-error" id="addrNameError">Required</div>
+      </div>
+
+      <div class="field-row">
         <label class="field-label" for="addrHouse">House / Flat No. <span class="req">*</span></label>
         <input type="text" id="addrHouse" class="address-field" placeholder="e.g. House No. 24, Flat 3B">
         <div class="field-error" id="addrHouseError">Required</div>
@@ -608,6 +614,12 @@
         <label class="field-label" for="addrMobile">Contact number for delivery <span class="req">*</span></label>
         <input type="tel" id="addrMobile" class="address-field" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number">
         <div class="field-error" id="addrMobileError">Enter a valid 10-digit number</div>
+      </div>
+
+      <div class="field-row">
+        <label class="field-label" for="addrMobileConfirm">Confirm contact number <span class="req">*</span></label>
+        <input type="tel" id="addrMobileConfirm" class="address-field" inputmode="numeric" maxlength="10" placeholder="Re-enter the mobile number">
+        <div class="field-error" id="addrMobileConfirmError">Mobile numbers do not match</div>
       </div>
     </div>
 
@@ -1013,16 +1025,20 @@ function getCartTotal(){
   return total;
 }
 
-// Validates all 5 delivery-address fields. Returns a structured address
-// object if everything's valid, or null (after highlighting the first
-// problem field and scrolling to it) if something's missing/invalid.
+// Validates all 7 delivery-address fields (name, house, area, pincode, city,
+// mobile, confirm-mobile). Returns a structured address object if everything's
+// valid, or null (after highlighting the first problem field and scrolling to
+// it) if something's missing/invalid.
 function validateAddressFields(){
   const fields = [
+    { id:'addrName', errId:'addrNameError', check: v => v.length > 0 },
     { id:'addrHouse', errId:'addrHouseError', check: v => v.length > 0 },
     { id:'addrArea', errId:'addrAreaError', check: v => v.length > 0 },
     { id:'addrPincode', errId:'addrPincodeError', check: v => /^\d{6}$/.test(v) },
     { id:'addrCity', errId:'addrCityError', check: v => v.length > 0 },
     { id:'addrMobile', errId:'addrMobileError', check: v => /^\d{10}$/.test(v) },
+    { id:'addrMobileConfirm', errId:'addrMobileConfirmError',
+      check: v => /^\d{10}$/.test(v) && v === document.getElementById('addrMobile').value.trim() },
   ];
 
   let firstBadEl = null;
@@ -1046,6 +1062,7 @@ function validateAddressFields(){
   }
 
   return {
+    name: values.addrName,
     house: values.addrHouse,
     area: values.addrArea,
     pincode: values.addrPincode,
@@ -1055,16 +1072,17 @@ function validateAddressFields(){
 }
 
 function clearAddressFields(){
-  ['addrHouse','addrArea','addrPincode','addrCity'].forEach(id => {
+  ['addrName','addrHouse','addrArea','addrPincode','addrCity'].forEach(id => {
     document.getElementById(id).value = '';
   });
   // Contact number stays pre-filled with the verified login number for
   // next time, rather than clearing it — matches openCart()'s default.
   document.getElementById('addrMobile').value = customerPhone;
-  ['addrHouseError','addrAreaError','addrPincodeError','addrCityError','addrMobileError'].forEach(id => {
+  document.getElementById('addrMobileConfirm').value = customerPhone;
+  ['addrNameError','addrHouseError','addrAreaError','addrPincodeError','addrCityError','addrMobileError','addrMobileConfirmError'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
-  ['addrHouse','addrArea','addrPincode','addrCity','addrMobile'].forEach(id => {
+  ['addrName','addrHouse','addrArea','addrPincode','addrCity','addrMobile','addrMobileConfirm'].forEach(id => {
     document.getElementById(id).classList.remove('error');
   });
 }
@@ -1237,17 +1255,20 @@ function openCart(){
   if(Object.keys(cart).length === 0){ alert('Your cart is empty — add some items from the menu first.'); return; }
   showScreen('screen-checkout');
   renderReceipt();
-  // Default the delivery contact number to the verified login number,
-  // but only if the customer hasn't already typed a different one in.
+  // Default the delivery contact number (and its confirm field) to the
+  // verified login number, but only if the customer hasn't already typed
+  // a different one in.
   const mobileField = document.getElementById('addrMobile');
+  const mobileConfirmField = document.getElementById('addrMobileConfirm');
   if(!mobileField.value) mobileField.value = customerPhone;
+  if(!mobileConfirmField.value) mobileConfirmField.value = customerPhone;
   loadSavedAddress();
 }
 
 async function loadSavedAddress(){
   if(!BACKEND_URL || !customerPhone) return;
 
-  const fields = ['addrHouse','addrArea','addrPincode','addrCity'];
+  const fields = ['addrName','addrHouse','addrArea','addrPincode','addrCity'];
   if(fields.some(id => document.getElementById(id).value.trim())) return;
 
   try{
@@ -1256,11 +1277,13 @@ async function loadSavedAddress(){
     const latestAddress = data.ok && data.orders.length > 0 ? data.orders[0].address : null;
     if(!latestAddress) return;
 
+    document.getElementById('addrName').value = latestAddress.name || '';
     document.getElementById('addrHouse').value = latestAddress.house || '';
     document.getElementById('addrArea').value = latestAddress.area || '';
     document.getElementById('addrPincode').value = latestAddress.pincode || '';
     document.getElementById('addrCity').value = latestAddress.city || '';
     document.getElementById('addrMobile').value = latestAddress.mobile || customerPhone;
+    document.getElementById('addrMobileConfirm').value = latestAddress.mobile || customerPhone;
   }catch(err){ /* keep the address form usable if history is unavailable */ }
 }
 
@@ -1330,11 +1353,13 @@ function endSession(){
 // Clear each address field's error styling as soon as the customer starts
 // correcting it, so the red state doesn't linger after they've fixed it.
 [
+  ['addrName','addrNameError'],
   ['addrHouse','addrHouseError'],
   ['addrArea','addrAreaError'],
   ['addrPincode','addrPincodeError'],
   ['addrCity','addrCityError'],
   ['addrMobile','addrMobileError'],
+  ['addrMobileConfirm','addrMobileConfirmError'],
 ].forEach(([fieldId, errId]) => {
   document.getElementById(fieldId).addEventListener('input', function(){
     this.classList.remove('error');

@@ -153,7 +153,8 @@
   .menu-preview-item img{ width:42px; height:42px; border-radius:8px; object-fit:cover; background:var(--green-pale); }
   .menu-preview-item .menu-preview-info{ flex:1; color:var(--dark-soft); }
   .menu-preview-item strong{ color:var(--dark); display:block; }
-  .menu-edit-btn, .menu-cancel-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; }
+  .menu-edit-btn, .menu-delete-btn, .menu-cancel-btn{ border:1px solid var(--green); color:var(--green-deep); background:#fff; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; }
+  .menu-delete-btn{ border-color:#c84b3a; color:#a52e20; }
   .menu-cancel-btn{ display:none; margin-left:8px; }
   @media (max-width:600px){ .menu-form{ grid-template-columns:1fr; } .menu-form .wide{ grid-column:auto; } .menu-form .check{ padding-top:0; } }
 </style>
@@ -489,7 +490,8 @@ function renderMenuPreview(items){
     row.className = 'menu-preview-item';
     row.innerHTML = `<img src="${item.image || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2242%22 height=%2242%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23EAF3E1%22/%3E%3C/svg%3E'}" alt="">
       <div class="menu-preview-info"><strong>${item.name}</strong>${item.category} · ₹${item.price}</div>
-      <button class="menu-edit-btn" type="button" onclick="editMenuItem('${item.id}')">Edit</button>`;
+      <button class="menu-edit-btn" type="button" onclick="editMenuItem('${item.id}')">Edit</button>
+      <button class="menu-delete-btn" type="button" onclick="deleteMenuItem('${item.id}')">Delete</button>`;
     preview.appendChild(row);
   });
 }
@@ -526,11 +528,32 @@ function cancelMenuEdit(){
   document.getElementById('menuMessage').textContent = '';
 }
 
+async function deleteMenuItem(id){
+  const item = MENU_ITEMS.find(menuItem => menuItem.id === id);
+  if(!item || !BACKEND_URL) return;
+  if(!window.confirm(`Delete "${item.name}" from the customer menu?`)) return;
+  const messageEl = document.getElementById('menuMessage');
+  messageEl.textContent = 'Deleting item...';
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/menu/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'x-owner-pin': PIN },
+    });
+    await readApiResponse(res);
+    MENU_ITEMS = MENU_ITEMS.filter(menuItem => menuItem.id !== id);
+    renderMenuPreview(MENU_ITEMS);
+    if(editingMenuId === id) cancelMenuEdit();
+    messageEl.textContent = 'Item deleted. Customers will no longer see it after refreshing the menu.';
+  }catch(err){
+    messageEl.textContent = err.message;
+  }
+}
+
 async function readApiResponse(response){
   const text = await response.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch (err) {
-    throw new Error(`Backend needs redeploy for menu editing (HTTP ${response.status}).`);
+    throw new Error(`Backend needs redeploy for menu changes (HTTP ${response.status}).`);
   }
   if(!response.ok || !data.ok) throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
   return data;

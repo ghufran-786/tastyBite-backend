@@ -872,7 +872,7 @@ async function loadRemoteMenu(){
   try{
     const res = await fetch(`${BACKEND_URL}/api/menu`);
     const data = await res.json();
-    if(!res.ok || !data.ok || !Array.isArray(data.items) || data.items.length === 0) return;
+    if(!res.ok || !data.ok || !Array.isArray(data.items)) return;
     MENU = {};
     data.items.forEach(item => {
       const category = item.category || 'Menu';

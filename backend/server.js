@@ -235,8 +235,9 @@ async function getMenuItems() {
   if (db) {
     const snap = await db.collection(MENU_COLLECTION).get();
     const saved = Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
-    return Object.values(DEFAULT_MENU).map(item => saved[item.id] || item)
-      .concat(snap.docs.map(d => d.data()).filter(item => !DEFAULT_MENU[item.id]));
+    return Object.values(DEFAULT_MENU).filter(item => !saved[item.id]?.deleted)
+      .map(item => saved[item.id] || item)
+      .concat(snap.docs.map(d => d.data()).filter(item => !DEFAULT_MENU[item.id] && !item.deleted));
   }
   return loadMenuFromFile();
 }
@@ -305,6 +306,27 @@ app.put('/api/menu/:id', checkOwnerPin, async (req, res) => {
   } catch (err) {
     console.error('edit-menu-item error:', err.message);
     res.status(500).json({ ok: false, error: 'Could not edit menu item' });
+  }
+});
+
+// DELETE /api/menu/:id (header: x-owner-pin)
+app.delete('/api/menu/:id', checkOwnerPin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await getMenuById(id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
+
+    if (db && DEFAULT_MENU[id]) {
+      await db.collection(MENU_COLLECTION).doc(id).set({ id, deleted: true });
+    } else if (db) {
+      await db.collection(MENU_COLLECTION).doc(id).delete();
+    } else {
+      saveMenuToFile(loadMenuFromFile().filter(item => item.id !== id));
+    }
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error('delete-menu-item error:', err.message);
+    res.status(500).json({ ok: false, error: 'Could not delete menu item' });
   }
 });
 

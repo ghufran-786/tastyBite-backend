@@ -399,6 +399,7 @@
   }
   .history-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
   .history-id{ font-weight:700; font-size:14px; color:var(--green-deep); }
+  .history-date{ font-size:12px; color:var(--dark-soft); margin:0 0 6px; }
   .history-status{
     font-size:11px; font-weight:700; padding:3px 10px; border-radius:100px; text-transform:uppercase;
   }
@@ -1251,6 +1252,15 @@ function stopOrderStatusPolling(){
 }
 
 /* ---------------- ORDER HISTORY ("My Orders") ---------------- */
+function formatOrderDateTime(value){
+  const date = new Date(value);
+  if(!Number.isFinite(date.getTime())) return 'Date unavailable';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+  }).format(date);
+}
+
 function openCart(){
   if(Object.keys(cart).length === 0){ alert('Your cart is empty — add some items from the menu first.'); return; }
   showScreen('screen-checkout');
@@ -1308,6 +1318,7 @@ async function openOrderHistory(){
           <span class="history-id">Order #${o.displayId}</span>
           <span class="history-status ${o.status === 'paid' ? 'paid' : 'pending'}">${o.status === 'paid' ? '✓ Paid' : 'Pending'}</span>
         </div>
+        <div class="history-date">${formatOrderDateTime(o.createdAt)}</div>
         <div class="history-items">${o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}</div>
         ${o.address && o.address.house ? `<div class="history-address">📍 ${o.address.house}, ${o.address.area}, ${o.address.city} - ${o.address.pincode}</div>` : ''}
         <div class="history-bottom">
